@@ -3,6 +3,7 @@
 const BRIDGE_ORIGIN = "http://127.0.0.1:3000";
 const FRAME_POLL_INTERVAL_MS = 120;
 const SLOT_POLL_INTERVAL_MS = 500;
+const INACTIVITY_RELOAD_MS = 100000;
 const PREVIEW_FRAME_PATH = "/preview-frame";
 const REQUIRED_SLOTS = ["front", "left", "right"];
 const GUIDE_LABELS = {
@@ -32,6 +33,7 @@ const state = {
   frameRequestInFlight: false,
   slotRequestInFlight: false,
   captureStartedAt: 0,
+  inactivityTimer: null,
   latestFrameDataUrl: null,
   completedSlots: new Set(),
 };
@@ -39,6 +41,9 @@ const state = {
 elements.setProfilePhotoButton.addEventListener("click", () => {
   void startGuidedProfileCapture();
 });
+window.addEventListener("mousemove", handleUserActivity, { passive: true });
+
+scheduleInactivityReload();
 
 void refreshBridgeHealth();
 window.setInterval(() => void refreshBridgeHealth(false), 3000);
@@ -97,6 +102,33 @@ function resetCaptureState() {
   state.latestFrameDataUrl = null;
   state.completedSlots.clear();
   elements.cameraPlaceholder.hidden = false;
+  scheduleInactivityReload();
+}
+
+function handleUserActivity() {
+  if (isConversionInProgress()) {
+    return;
+  }
+
+  scheduleInactivityReload();
+}
+
+function scheduleInactivityReload() {
+  window.clearTimeout(state.inactivityTimer);
+  if (isConversionInProgress()) {
+    state.inactivityTimer = null;
+    return;
+  }
+
+  state.inactivityTimer = window.setTimeout(() => {
+    if (!isConversionInProgress()) {
+      window.location.reload();
+    }
+  }, INACTIVITY_RELOAD_MS);
+}
+
+function isConversionInProgress() {
+  return state.framePolling || state.slotPolling;
 }
 
 async function pollBridgeFrame() {
@@ -220,6 +252,7 @@ function finishGuidedCapture() {
   state.slotPolling = false;
   window.clearTimeout(state.frameTimer);
   window.clearTimeout(state.slotTimer);
+  scheduleInactivityReload();
   elements.profileScreen.hidden = true;
   elements.feedScreen.hidden = false;
   requestObamifyResultRescan();
