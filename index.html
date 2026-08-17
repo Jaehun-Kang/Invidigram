@@ -1,50 +1,13 @@
 <!doctype html>
 <html lang="ko">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Invidigram</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>나 되기: Becoming I</title>
   </head>
   <body>
-    <main class="app" id="app">
-      <section class="phone-screen profile-screen" id="profileScreen" aria-label="profile creation">
-        <header class="app-bar">
-          <h1>프로필 만들기</h1>
-          <span class="bridge-dot" id="bridgeStatus">연결 확인</span>
-        </header>
-
-        <div class="profile-editor">
-          <div class="avatar-preview" id="avatarPreview">
-            <span>프로필 사진</span>
-          </div>
-          <button class="photo-button" id="setProfilePhotoButton" type="button">프로필 사진 설정</button>
-
-          <label class="profile-field">
-            <span>이름</span>
-            <input type="text" value="shimsa1" aria-label="profile name" />
-          </label>
-
-          <p class="status-text" id="statusText">브릿지에서 카메라 프레임을 기다리는 중입니다.</p>
-        </div>
-
-        <div class="camera-sheet" id="cameraSheet" aria-live="polite" hidden>
-          <div class="bridge-camera">
-            <img id="bridgeFrame" alt="브릿지 카메라 미리보기" data-obamify-skip="1" />
-            <div class="camera-placeholder" id="cameraPlaceholder">브릿지 화면 대기 중</div>
-          </div>
-          <p class="guide-text" id="guideText">정면을 보세요</p>
-        </div>
-      </section>
-
-      <section class="feed-screen" id="feedScreen" aria-label="temporary profile page" hidden>
-        <div class="result-gallery" aria-label="temporary photos">
-          <img src="./ComfyUI_temp_ppbvo_00034_small.png" alt="임시 프로필 사진 1" />
-          <img src="./ComfyUI_temp_ppbvo_00020_small.png" alt="임시 프로필 사진 2" />
-        </div>
-      </section>
-    </main>
-
-    <script src="./app.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
