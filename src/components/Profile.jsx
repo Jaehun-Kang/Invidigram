@@ -106,22 +106,24 @@ function Profile({ profileGender, profileData, taggedUsername }) {
         (job) =>
           job.assetId === post.assetId ||
           (job.role === "frame" &&
-            (job.postId === post.id || job.slot === post.id || job.slot === index)),
+            (job.postId === post.id ||
+              job.slot === post.id ||
+              job.slot === index)),
       );
       return {
-      ...post,
-      postIndex: index,
-      image:
-        transforms.urls[frameAsset?.assetId] ??
-        frameAsset?.originalPath ??
-        resolveAssetUrl(post.image),
-      profileImage: profileUser.profileImage,
-      username: profileUser.username,
-      caption: post.caption ?? "",
-      commentTimestamp: getRelativePostTimestamp(post.timestamp),
-      displayTimestamp: formatPostTimestamp(post.timestamp),
-      taggedUsernames: post.taggedUsernames ?? [],
-    };
+        ...post,
+        postIndex: index,
+        image:
+          transforms.urls[frameAsset?.assetId] ??
+          frameAsset?.originalPath ??
+          resolveAssetUrl(post.image),
+        profileImage: profileUser.profileImage,
+        username: profileUser.username,
+        caption: post.caption ?? "",
+        commentTimestamp: getRelativePostTimestamp(post.timestamp),
+        displayTimestamp: formatPostTimestamp(post.timestamp),
+        taggedUsernames: post.taggedUsernames ?? [],
+      };
     });
   const profilePostFrames = Array.from(
     { length: postFrameCount },
