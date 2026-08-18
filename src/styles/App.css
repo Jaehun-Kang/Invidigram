@@ -570,16 +570,18 @@ main .profile--posts--frames {
 }
 main .profile--posts--frames--frame {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   aspect-ratio: 3/4;
   padding: 0;
   overflow: hidden;
   background-color: var(--secondary);
 }
 main .profile--posts--frames--frame > img {
-  width: 100%;
+  width: auto;
   height: 100%;
-  -o-object-fit: cover;
-     object-fit: cover;
+  max-width: none;
 }
 main .profile--posts--frames--frame::before {
   content: "";

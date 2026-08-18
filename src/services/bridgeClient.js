@@ -80,7 +80,15 @@ export class BridgeClient {
   }
 
   async getTransformResultBlob(session, resultUrl) {
-    const response = await this.fetchImpl(`${this.baseUrl}${resultUrl}`, {
+    return this.#getSessionBlob(session, resultUrl);
+  }
+
+  async getTransformAnimationBlob(session, animationUrl) {
+    return this.#getSessionBlob(session, animationUrl);
+  }
+
+  async #getSessionBlob(session, url) {
+    const response = await this.fetchImpl(`${this.baseUrl}${url}`, {
       headers: { authorization: `Bearer ${session.sessionToken}` },
     });
     if (!response.ok) {

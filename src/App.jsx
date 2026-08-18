@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Sidebar from "./components/Sidebar.jsx";
 import Profile from "./components/Profile.jsx";
 import ProfileSetting from "./components/ProfileSetting.jsx";
-import FinalizedSessionRoute from "./components/FinalizedSessionRoute.jsx";
 import profileMale from "./data/profile_male.json";
 import profileFemale from "./data/profile_female.json";
 import { getCurrentAudience } from "./utils/audienceStore.js";
@@ -34,28 +33,26 @@ const pages = [
   },
   {
     path: "/profile_a",
+    //활성화 방법: FinalizedSessionRoute를 import하고 이 Profile을 profileGender="male" wrapper로 감싸세요.
     element: (
-      <FinalizedSessionRoute profileGender="male">
-        <Profile
-          key="profile_male"
-          profileGender="male"
-          profileData={profileMale}
-          taggedUsername="username_female"
-        />
-      </FinalizedSessionRoute>
+      <Profile
+        key="profile_male"
+        profileGender="male"
+        profileData={profileMale}
+        taggedUsername="username_female"
+      />
     ),
   },
   {
     path: "/profile_b",
+    //활성화 방법: FinalizedSessionRoute를 import하고 이 Profile을 profileGender="female" wrapper로 감싸세요.
     element: (
-      <FinalizedSessionRoute profileGender="female">
-        <Profile
-          key="profile_female"
-          profileGender="female"
-          profileData={profileFemale}
-          taggedUsername="username_male"
-        />
-      </FinalizedSessionRoute>
+      <Profile
+        key="profile_female"
+        profileGender="female"
+        profileData={profileFemale}
+        taggedUsername="username_male"
+      />
     ),
   },
 ];

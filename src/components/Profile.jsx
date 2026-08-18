@@ -90,31 +90,47 @@ const getPostOverlayImageWidth = (imageRatio) => {
 };
 
 function Profile({ profileGender, profileData, taggedUsername }) {
-  const transformedProfileImage = useProfileTransforms(profileGender);
+  const transforms = useProfileTransforms(profileGender);
   const currentAudience = getCurrentAudience();
   const currentAudienceIdentity = getAudienceIdentity(currentAudience);
   const viewerState = getAudienceProfileState(currentAudience, profileGender);
   const isOwnGenderProfile = currentAudience?.gender === profileGender;
   const initialIsProfileFollowing =
     viewerState?.isFollowing ?? isOwnGenderProfile;
+  const profileAsset = transforms.jobs.find(
+    (job) => job.role === "profile-avatar",
+  );
   const profileUser = {
     ...profileData.user,
     profileImage:
-      transformedProfileImage ?? resolveAssetUrl(profileData.user.profileImage),
+      transforms.urls[profileAsset?.assetId] ??
+      profileAsset?.originalPath ??
+      resolveAssetUrl(profileData.user.profileImage),
   };
   const profilePosts = [...profileData.posts]
     .sort((firstPost, secondPost) => secondPost.timestamp - firstPost.timestamp)
-    .map((post, index) => ({
+    .map((post, index) => {
+      const frameAsset = transforms.jobs.find(
+        (job) =>
+          job.assetId === post.assetId ||
+          (job.role === "frame" &&
+            (job.postId === post.id || job.slot === post.id || job.slot === index)),
+      );
+      return {
       ...post,
       postIndex: index,
-      image: resolveAssetUrl(post.image),
+      image:
+        transforms.urls[frameAsset?.assetId] ??
+        frameAsset?.originalPath ??
+        resolveAssetUrl(post.image),
       profileImage: profileUser.profileImage,
       username: profileUser.username,
       caption: post.caption ?? "",
       commentTimestamp: getRelativePostTimestamp(post.timestamp),
       displayTimestamp: formatPostTimestamp(post.timestamp),
       taggedUsernames: post.taggedUsernames ?? [],
-    }));
+    };
+    });
   const profilePostFrames = Array.from(
     { length: postFrameCount },
     (_, index) => profilePosts[index] ?? null,

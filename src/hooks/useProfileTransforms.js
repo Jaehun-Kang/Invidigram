@@ -3,7 +3,7 @@ import { bridgeClient } from "../services/bridgeClient.js";
 import { sessionStore } from "../services/sessionStore.js";
 
 export const useProfileTransforms = (profileGender) => {
-  const [resultUrl, setResultUrl] = useState(null);
+  const [state, setState] = useState({ jobs: [], urls: {} });
 
   useEffect(() => {
     const session = sessionStore.load();
@@ -11,29 +11,48 @@ export const useProfileTransforms = (profileGender) => {
 
     let cancelled = false;
     let pollTimer;
-    let objectUrl;
-    const assetId = `lora-${profileGender}`;
+    const objectUrls = new Set();
+    const loaded = new Map();
 
     const poll = async () => {
       try {
         const jobs = await bridgeClient.getTransforms(session);
-        const job = jobs.find((candidate) => candidate.assetId === assetId);
-        if (job?.status === "READY" && job.resultUrl) {
-          const blob = await bridgeClient.getTransformResultBlob(
+        for (const job of jobs) {
+          const key = `${job.assetId}:${job.pipelineVersion}`;
+          if (job.status !== "READY" || loaded.has(key)) continue;
+          let blob;
+          if (job.animationUrl) {
+            try {
+              blob = await bridgeClient.getTransformAnimationBlob(
+                session,
+                job.animationUrl,
+              );
+            } catch {
+              blob = null;
+            }
+          }
+          blob ??= await bridgeClient.getTransformResultBlob(
             session,
             job.resultUrl,
           );
-          if (!cancelled) {
-            objectUrl = URL.createObjectURL(blob);
-            setResultUrl(objectUrl);
-          }
-          return;
+          const objectUrl = URL.createObjectURL(blob);
+          objectUrls.add(objectUrl);
+          loaded.set(key, objectUrl);
         }
-        if (job?.status === "FAILED") return;
-        if (!job) {
+        if (!cancelled) {
+          const urls = {};
+          for (const job of jobs) {
+            const url = loaded.get(`${job.assetId}:${job.pipelineVersion}`);
+            if (url) urls[job.assetId] = url;
+          }
+          setState({ jobs, urls });
+        }
+        if (!jobs.length) {
           await bridgeClient.scheduleTransforms(session);
         }
-        pollTimer = setTimeout(poll, 300);
+        if (jobs.some((job) => ["PENDING", "RUNNING"].includes(job.status))) {
+          pollTimer = setTimeout(poll, 300);
+        }
       } catch {
         pollTimer = setTimeout(poll, 1000);
       }
@@ -49,9 +68,9 @@ export const useProfileTransforms = (profileGender) => {
     return () => {
       cancelled = true;
       clearTimeout(pollTimer);
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      for (const objectUrl of objectUrls) URL.revokeObjectURL(objectUrl);
     };
   }, [profileGender]);
 
-  return resultUrl;
+  return state;
 };

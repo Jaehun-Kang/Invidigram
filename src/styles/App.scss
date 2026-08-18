@@ -686,15 +686,18 @@ main {
 
         &--frame {
           position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           aspect-ratio: 3/4;
           padding: 0;
           overflow: hidden;
           background-color: var(--secondary);
 
           > img {
-            width: 100%;
+            width: auto;
             height: 100%;
-            object-fit: cover;
+            max-width: none;
           }
 
           &::before {
