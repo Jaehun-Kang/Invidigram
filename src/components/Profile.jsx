@@ -69,15 +69,7 @@ const getRelativePostTimestamp = (timestamp) => {
     return `${elapsedDays}일`;
   }
 
-  if (elapsedDays < 30) {
-    return `${Math.floor(elapsedDays / 7)}주`;
-  }
-
-  if (elapsedDays < 365) {
-    return `${Math.floor(elapsedDays / 30)}개월`;
-  }
-
-  return `${Math.floor(elapsedDays / 365)}년`;
+  return `${Math.floor(elapsedDays / 7)}주`;
 };
 
 const getPostOverlayImageWidth = (imageRatio) => {
