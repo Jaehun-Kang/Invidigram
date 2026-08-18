@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "pipelineVersion": 10,
+  "assetId": "lora-female",
+  "collection": "female",
+  "role": "profile-avatar",
+  "width": 896,
+  "height": 1200,
+  "sourceSha256": "0659b73f05d8f3746c055a59ebee63cf0d132399f3fcd9661f467094a1544b40",
+  "cleanedSha256": "42ea923271c1c0b4cd273e12156077d93de665775f52dd0e7acae759048f7315",
+  "approved": true
+}

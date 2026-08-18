@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import iconProfile from "../assets/icons/profile.svg";
 import iconRefresh from "../assets/icons/refresh.svg";
 import iconCheck from "../assets/icons/check.svg";
 import usernameWords from "../data/usernameWords.json";
+import { saveCurrentAudience } from "../utils/audienceStore.js";
 import convertKoreanToQwerty from "../utils/convertKoreanToQwerty.js";
+import { useProfileSession } from "../hooks/useProfileSession.js";
 
 const genderOptions = [
   { value: "male", label: "남성" },
@@ -41,14 +44,35 @@ const createUsernameSuggestion = (previousWord) => {
 };
 
 function ProfileSetting() {
+  const navigate = useNavigate();
   const genderRef = useRef(null);
   const lastUsernameWordRef = useRef("");
   const [username, setUsername] = useState("");
   const [isGenderOpen, setIsGenderOpen] = useState(false);
   const [selectedGender, setSelectedGender] = useState("");
+  const {
+    canStartCapture,
+    finalize,
+    isBusy,
+    isCaptureComplete,
+    startCapture,
+    statusMessage,
+  } = useProfileSession();
   const selectedGenderLabel =
     genderOptions.find((option) => option.value === selectedGender)?.label ??
     "성별";
+
+  const saveLoginData = async () => {
+    const finalized = await finalize({ username, gender: selectedGender });
+
+    if (!finalized) return;
+    saveCurrentAudience({
+      username,
+      gender: selectedGender,
+      profileImage: iconProfile,
+    });
+    navigate(finalized.profileRoute, { replace: true });
+  };
 
   useEffect(() => {
     if (!isGenderOpen) {
@@ -147,15 +171,27 @@ function ProfileSetting() {
               </div>
             </div>
             <div className="profile_setting--profile--info--message">
-              안내 메시지
+              {statusMessage}
             </div>
           </div>
         </div>
         <div className="profile_setting--btns">
-          <button className="profile_setting--btns--capture">
+          <button
+            className="profile_setting--btns--capture"
+            disabled={!canStartCapture}
+            onClick={startCapture}
+          >
             프로필 촬영
           </button>
-          <button className="profile_setting--btns--save">저장</button>
+          <button
+            className="profile_setting--btns--save"
+            disabled={
+              isBusy || !isCaptureComplete || !username || !selectedGender
+            }
+            onClick={saveLoginData}
+          >
+            저장
+          </button>
         </div>
       </div>
     </main>

@@ -6,9 +6,12 @@ import iconHeartS from "../assets/icons/heart_solid.svg";
 import iconUpload from "../assets/icons/upload.svg";
 import iconProfile from "../assets/icons/profile.svg";
 import iconLogout from "../assets/icons/logout.svg";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { clearCurrentAudience } from "../utils/audienceStore.js";
+import { logoutCurrentSession } from "../services/sessionLifecycle.js";
 
 function Sidebar() {
+  const navigate = useNavigate();
   const { pathname } = useLocation();
   const isHomeSelected = pathname === "/profile_a" || pathname === "/profile_b";
   const isProfileSelected = pathname === "/profile-setting";
@@ -64,6 +67,15 @@ function Sidebar() {
             type="button"
             disabled={isProfileSelected}
             aria-hidden={isProfileSelected}
+            onClick={async () => {
+              try {
+                await logoutCurrentSession();
+                clearCurrentAudience();
+                navigate("/profile-setting", { replace: true });
+              } catch {
+                return;
+              }
+            }}
           >
             <div className="nav--section--btn--icon">
               <img src={iconLogout} alt="Logout" />

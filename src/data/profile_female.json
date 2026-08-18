@@ -1,0 +1,37 @@
+{
+  "user": {
+    "username": "username_female",
+    "name": "name",
+    "profileImage": "../assets/icons/profile.svg"
+  },
+  "stats": {
+    "followers": 1,
+    "following": 1
+  },
+  "posts": [
+    {
+      "id": 1,
+      "image": "../assets/profile/temp_square_7980ff.svg",
+      "caption": "국민경제자문회의의 조직·직무범위 기타 필요한 사항은 법률로 정한다.",
+      "timestamp": 20260812,
+      "likes": 42,
+      "taggedUsernames": ["username_male"]
+    },
+    {
+      "id": 2,
+      "image": "../assets/profile/temp_portrait_7980ff.svg",
+      "caption": "모든 국민은 근로의 권리를 가진다. 국가는 근로자의 고용의 증진에 노력하여야 한다.",
+      "timestamp": 20260720,
+      "likes": 76,
+      "taggedUsernames": []
+    },
+    {
+      "id": 3,
+      "image": "../assets/profile/temp_landscape_7980ff.svg",
+      "caption": "",
+      "timestamp": 20260605,
+      "likes": 91,
+      "taggedUsernames": ["username_male"]
+    }
+  ]
+}

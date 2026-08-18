@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "pipelineVersion": 10,
+  "generatedAt": "2026-08-18T05:40:06.280Z",
+  "assets": [
+    {
+      "assetId": "lora-male",
+      "collection": "male",
+      "role": "profile-avatar",
+      "originalPath": "/targets/male/lora-male/original.png",
+      "cleanedPath": "/targets/male/lora-male/cleaned.png",
+      "metadataPath": "/targets/male/lora-male/metadata.json",
+      "faceLandmarksPath": "/targets/male/lora-male/analysis/face-landmarks.json",
+      "hairMaskPath": "/targets/male/lora-male/analysis/hair-mask.png",
+      "hairExclusionMaskPath": "/targets/male/lora-male/analysis/hair-exclusion-mask.png",
+      "schedule": {
+        "trigger": "profile-enter",
+        "delayMs": 0,
+        "order": 0,
+        "priority": 100
+      },
+      "required": true,
+      "preserveOriginal": true,
+      "approved": true
+    },
+    {
+      "assetId": "lora-female",
+      "collection": "female",
+      "role": "profile-avatar",
+      "originalPath": "/targets/female/lora-female/original.png",
+      "cleanedPath": "/targets/female/lora-female/cleaned.png",
+      "metadataPath": "/targets/female/lora-female/metadata.json",
+      "faceLandmarksPath": "/targets/female/lora-female/analysis/face-landmarks.json",
+      "hairMaskPath": "/targets/female/lora-female/analysis/hair-mask.png",
+      "hairExclusionMaskPath": "/targets/female/lora-female/analysis/hair-exclusion-mask.png",
+      "schedule": {
+        "trigger": "profile-enter",
+        "delayMs": 0,
+        "order": 0,
+        "priority": 100
+      },
+      "required": true,
+      "preserveOriginal": true,
+      "approved": true
+    }
+  ]
+}

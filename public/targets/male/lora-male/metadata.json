@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "pipelineVersion": 10,
+  "assetId": "lora-male",
+  "collection": "male",
+  "role": "profile-avatar",
+  "width": 896,
+  "height": 1200,
+  "sourceSha256": "b6f4cde7c86dc4cddd6fe59cdeaaaf37d50340b780608a6716e730dfe50cbae4",
+  "cleanedSha256": "6186c15d544f7a9acb68db1e0121af6c532d116066def99377af4ad4332a8849",
+  "approved": true
+}
