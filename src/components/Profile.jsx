@@ -122,9 +122,7 @@ function Profile({ profileGender, profileData, taggedUsername }) {
   const stats = getInitialStats(profileData);
   const [selectedPostsTab, setSelectedPostsTab] = useState("posts");
   const [selectedPostIndex, setSelectedPostIndex] = useState(null);
-  const [likedPostIndexes, setLikedPostIndexes] = useState(
-    () => new Set(),
-  );
+  const [likedPostIndexes, setLikedPostIndexes] = useState(() => new Set());
   const [poppingLikeIndex, setPoppingLikeIndex] = useState(null);
   const [postOverlayImageRatio, setPostOverlayImageRatio] = useState(1);
   const [postOverlayImageWidth, setPostOverlayImageWidth] = useState(
