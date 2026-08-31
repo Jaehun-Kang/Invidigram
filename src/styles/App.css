@@ -120,6 +120,24 @@ nav:hover .nav--section--btn--text {
   transition: opacity 100ms ease-in-out;
 }
 
+.return_home_button {
+  position: fixed;
+  right: 32px;
+  bottom: 32px;
+  z-index: 20;
+  height: 48px;
+  padding-inline: 22px;
+  border-radius: 999px;
+  background-color: var(--black);
+  color: var(--white);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(12, 16, 20, 0.16);
+}
+.return_home_button:hover {
+  background-color: rgb(38, 43, 49);
+}
+
 @keyframes like-pop {
   50% {
     transform: scale(1.1);
@@ -132,32 +150,31 @@ main {
   display: grid;
 }
 main .profile_setting {
-  width: 960px;
+  width: 520px;
   margin-inline: auto;
   display: grid;
-  row-gap: 24px;
   align-self: center;
 }
 main .profile_setting--profile {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  -moz-column-gap: 56px;
-       column-gap: 56px;
+  justify-items: center;
+  row-gap: 56px;
+}
+main .profile_setting--profile--img {
+  width: 100%;
 }
 main .profile_setting--profile--img img {
-  width: 300px;
+  width: 100%;
   aspect-ratio: 1;
 }
 main .profile_setting--profile--info {
-  position: relative;
-  height: 100%;
+  width: 100%;
   display: grid;
-  align-items: center;
+  row-gap: 24px;
 }
 main .profile_setting--profile--info--box {
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: repeat(2, min-content);
   row-gap: 24px;
 }
 main .profile_setting--profile--info--box--username--input, main .profile_setting--profile--info--box--gender--button {
@@ -252,6 +269,7 @@ main .profile_setting--profile--info--box--gender--list--option:hover {
 }
 main .profile_setting--profile--info--box--gender--list--option:active {
   background-color: var(--pressed);
+  scale: 1;
 }
 main .profile_setting--profile--info--box--gender--list--option--radio {
   margin-left: 12px;
@@ -275,18 +293,15 @@ main .profile_setting--profile--info--box--gender--list--option[aria-selected=tr
   opacity: 1;
 }
 main .profile_setting--profile--info--message {
-  position: absolute;
-  bottom: 0;
-  left: 0;
+  min-height: 28px;
   color: var(--black-light);
   font-size: 22px;
+  line-height: 128%;
+  text-align: left;
 }
 main .profile_setting--btns {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  -moz-column-gap: 16px;
-       column-gap: 16px;
-  padding-block: 24px;
+  margin-top: 24px;
 }
 main .profile_setting--btns > button {
   padding: 10px;
@@ -296,18 +311,17 @@ main .profile_setting--btns > button {
   font-weight: 600;
 }
 main .profile_setting--btns--capture {
-  background-color: var(--secondary);
-  color: var(--black);
-}
-main .profile_setting--btns--capture:hover {
-  background-color: var(--secondary-hover);
-}
-main .profile_setting--btns--save {
   background-color: var(--primary);
   color: var(--white);
 }
-main .profile_setting--btns--save:hover {
+main .profile_setting--btns--capture:hover {
   background-color: var(--primary-hover);
+}
+main .profile_setting--btns--capture:disabled {
+  background-color: var(--primary-light);
+  color: var(--white);
+  cursor: default;
+  pointer-events: none;
 }
 main .profile {
   width: 100%;
@@ -379,45 +393,6 @@ main .profile--header--details--info--datas--data--dataname {
 }
 main .profile--header--details--info--datas--data--datavalue {
   font-weight: 600;
-}
-main .profile--header--btns {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr) min-content;
-  gap: 10px;
-  padding-block: 12px;
-}
-main .profile--header--btns--btn {
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 125%;
-  background-color: var(--secondary);
-  color: var(--black);
-}
-main .profile--header--btns--btn[aria-pressed=false] {
-  background-color: var(--primary);
-  color: var(--white);
-}
-main .profile--header--btns--btn[aria-pressed=false]:hover {
-  background-color: var(--primary-hover);
-}
-main .profile--header--btns--btn img:nth-child(2) {
-  display: none;
-}
-main .profile--header--btns--btn.selected img:first-child {
-  display: none;
-}
-main .profile--header--btns--btn.selected img:nth-child(2) {
-  display: block;
-}
-main .profile--header--btns--btn:last-child {
-  width: 44px;
-}
-main .profile--header--btns--btn:hover {
-  background-color: var(--secondary-hover);
 }
 main .profile--header--highlights {
   display: grid;

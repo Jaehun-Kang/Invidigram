@@ -164,6 +164,25 @@ nav {
   }
 }
 
+.return_home_button {
+  position: fixed;
+  right: 32px;
+  bottom: 32px;
+  z-index: 20;
+  height: 48px;
+  padding-inline: 22px;
+  border-radius: 999px;
+  background-color: var(--black);
+  color: var(--white);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(12, 16, 20, 0.16);
+
+  &:hover {
+    background-color: rgb(38, 43, 49);
+  }
+}
+
 @keyframes like-pop {
   50% {
     transform: scale(1.1);
@@ -177,33 +196,32 @@ main {
   display: grid;
 
   & .profile_setting {
-    width: 960px;
+    width: 520px;
     margin-inline: auto;
     display: grid;
-    row-gap: 24px;
     align-self: center;
 
     &--profile {
       display: grid;
-      grid-template-columns: auto 1fr;
-      align-items: center;
-      column-gap: 56px;
+      justify-items: center;
+      row-gap: 56px;
 
       &--img {
+        width: 100%;
+
         img {
-          width: 300px;
+          width: 100%;
           aspect-ratio: 1;
         }
       }
       &--info {
-        position: relative;
-        height: 100%;
+        width: 100%;
         display: grid;
-        align-items: center;
+        row-gap: 24px;
 
         &--box {
           display: grid;
-          grid-template-rows: 1fr 1fr;
+          grid-template-rows: repeat(2, min-content);
           row-gap: 24px;
 
           &--username--input,
@@ -310,6 +328,7 @@ main {
 
                 &:active {
                   background-color: var(--pressed);
+                  scale: 1;
                 }
 
                 &--radio {
@@ -344,20 +363,18 @@ main {
         }
 
         &--message {
-          position: absolute;
-          bottom: 0;
-          left: 0;
+          min-height: 28px;
           color: var(--black-light);
           font-size: 22px;
+          line-height: 128%;
+          text-align: left;
         }
       }
     }
 
     &--btns {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      column-gap: 16px;
-      padding-block: 24px;
+      margin-top: 24px;
 
       > button {
         padding: 10px;
@@ -369,20 +386,18 @@ main {
       }
 
       &--capture {
-        background-color: var(--secondary);
-        color: var(--black);
-
-        &:hover {
-          background-color: var(--secondary-hover);
-        }
-      }
-
-      &--save {
         background-color: var(--primary);
         color: var(--white);
 
         &:hover {
           background-color: var(--primary-hover);
+        }
+
+        &:disabled {
+          background-color: var(--primary-light);
+          color: var(--white);
+          cursor: default;
+          pointer-events: none;
         }
       }
     }
@@ -458,57 +473,6 @@ main {
                 font-weight: 600;
               }
             }
-          }
-        }
-      }
-      &--btns {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr) min-content;
-        gap: 10px;
-        padding-block: 12px;
-
-        &--btn {
-          height: 44px;
-          display: grid;
-          place-items: center;
-
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 600;
-          line-height: 125%;
-
-          background-color: var(--secondary);
-          color: var(--black);
-
-          &[aria-pressed="false"] {
-            background-color: var(--primary);
-            color: var(--white);
-
-            &:hover {
-              background-color: var(--primary-hover);
-            }
-          }
-
-          img:nth-child(2) {
-            display: none;
-          }
-
-          &.selected {
-            img:first-child {
-              display: none;
-            }
-
-            img:nth-child(2) {
-              display: block;
-            }
-          }
-
-          &:last-child {
-            width: 44px;
-          }
-
-          &:hover {
-            background-color: var(--secondary-hover);
           }
         }
       }

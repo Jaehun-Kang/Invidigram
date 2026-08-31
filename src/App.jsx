@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Sidebar from "./components/Sidebar.jsx";
 import Profile from "./components/Profile.jsx";
 import ProfileSetting from "./components/ProfileSetting.jsx";
+import MyProfile from "./components/MyProfile.jsx";
 import profileMale from "./data/profile_male.json";
 import profileFemale from "./data/profile_female.json";
 import { getCurrentAudience } from "./utils/audienceStore.js";
@@ -30,6 +31,10 @@ const pages = [
     path: "/profile-setting",
     aliases: ["/profile setting"],
     element: <ProfileSetting />,
+  },
+  {
+    path: "/my-profile",
+    element: <MyProfile />,
   },
   {
     path: "/profile_a",

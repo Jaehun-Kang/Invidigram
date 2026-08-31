@@ -27,6 +27,11 @@ button {
   border: none;
 }
 
+button:disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
 button:active {
   scale: 0.97;
 }

@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import iconSimilarO from "../assets/icons/similar_outline.svg";
-import iconSimilarS from "../assets/icons/similar_solid.svg";
 import iconPostsO from "../assets/icons/posts_outline.svg";
 import iconPostsS from "../assets/icons/posts_solid.svg";
 import iconPostsTaggedO from "../assets/icons/posts_tagged_outline.svg";
@@ -10,12 +8,6 @@ import iconHeartO from "../assets/icons/heart_outline.svg";
 import iconHeartS from "../assets/icons/heart_solid.svg";
 import PostFrame from "./PostFrame";
 import { useProfileTransforms } from "../hooks/useProfileTransforms.js";
-import {
-  getAudienceIdentity,
-  getAudienceProfileState,
-  getCurrentAudience,
-  saveAudienceProfileStateByIdentity,
-} from "../utils/audienceStore.js";
 
 const profileAssetUrls = import.meta.glob("../assets/**/*", {
   eager: true,
@@ -83,12 +75,6 @@ const getPostOverlayImageWidth = (imageRatio) => {
 
 function Profile({ profileGender, profileData, taggedUsername }) {
   const transforms = useProfileTransforms(profileGender);
-  const currentAudience = getCurrentAudience();
-  const currentAudienceIdentity = getAudienceIdentity(currentAudience);
-  const viewerState = getAudienceProfileState(currentAudience, profileGender);
-  const isOwnGenderProfile = currentAudience?.gender === profileGender;
-  const initialIsProfileFollowing =
-    viewerState?.isFollowing ?? isOwnGenderProfile;
   const profileAsset = transforms.jobs.find(
     (job) => job.role === "profile-avatar",
   );
@@ -132,16 +118,12 @@ function Profile({ profileGender, profileData, taggedUsername }) {
   const taggedPosts = profilePosts.filter((post) =>
     post.taggedUsernames.includes(taggedUsername),
   );
-  const [isProfileFollowing, setIsProfileFollowing] = useState(
-    initialIsProfileFollowing,
-  );
   const [isRecommendedFollowing, setIsRecommendedFollowing] = useState(false);
   const stats = getInitialStats(profileData);
-  const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [selectedPostsTab, setSelectedPostsTab] = useState("posts");
   const [selectedPostIndex, setSelectedPostIndex] = useState(null);
   const [likedPostIndexes, setLikedPostIndexes] = useState(
-    () => new Set(viewerState?.likedPostIds ?? []),
+    () => new Set(),
   );
   const [poppingLikeIndex, setPoppingLikeIndex] = useState(null);
   const [postOverlayImageRatio, setPostOverlayImageRatio] = useState(1);
@@ -156,22 +138,6 @@ function Profile({ profileGender, profileData, taggedUsername }) {
     selectedPost !== null && likedPostIndexes.has(selectedPost.id);
   const getPostLikeCount = (post) =>
     post.likes + (likedPostIndexes.has(post.id) ? 1 : 0);
-  const displayStats = {
-    ...stats,
-    followers: stats.followers + (isProfileFollowing ? 1 : 0),
-  };
-
-  useEffect(() => {
-    saveAudienceProfileStateByIdentity(currentAudienceIdentity, profileGender, {
-      isFollowing: isProfileFollowing,
-      likedPostIds: Array.from(likedPostIndexes),
-    });
-  }, [
-    currentAudienceIdentity,
-    isProfileFollowing,
-    likedPostIndexes,
-    profileGender,
-  ]);
 
   useEffect(() => {
     const updatePostOverlayImageWidth = () => {
@@ -185,10 +151,6 @@ function Profile({ profileGender, profileData, taggedUsername }) {
       window.removeEventListener("resize", updatePostOverlayImageWidth);
     };
   }, [postOverlayImageRatio]);
-
-  const toggleProfileFollow = () => {
-    setIsProfileFollowing((isFollowing) => !isFollowing);
-  };
 
   const openPostOverlay = (postIndex) => {
     setSelectedPostIndex(postIndex);
@@ -237,7 +199,7 @@ function Profile({ profileGender, profileData, taggedUsername }) {
                       게시물
                     </div>
                     <div className="profile--header--details--info--datas--data--datavalue">
-                      {displayStats.posts}
+                      {stats.posts}
                     </div>
                   </div>
                   <div className="profile--header--details--info--datas--data">
@@ -245,38 +207,19 @@ function Profile({ profileGender, profileData, taggedUsername }) {
                       팔로워
                     </div>
                     <div className="profile--header--details--info--datas--data--datavalue">
-                      {displayStats.followers}
+                      {stats.followers}
                     </div>
                   </div>
                   <div className="profile--header--details--info--datas--data">
                     <div className="profile--header--details--info--datas--data--dataname">
-                      팔로우
+                      팔로잉
                     </div>
                     <div className="profile--header--details--info--datas--data--datavalue">
-                      {displayStats.following}
+                      {stats.following}
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="profile--header--btns">
-              <button
-                className={`profile--header--btns--btn${isProfileFollowing ? " selected" : ""}`}
-                aria-pressed={isProfileFollowing}
-                onClick={toggleProfileFollow}
-              >
-                {isProfileFollowing ? "팔로잉" : "팔로우"}
-              </button>
-              <button className="profile--header--btns--btn">
-                메시지 보내기
-              </button>
-              <button
-                className={`profile--header--btns--btn${isRecommendOpen ? " selected" : ""}`}
-                onClick={() => setIsRecommendOpen((isOpen) => !isOpen)}
-              >
-                <img src={iconSimilarO} />
-                <img src={iconSimilarS} />
-              </button>
             </div>
             <div className="profile--header--highlights">
               <button className="profile--header--highlights--highlight">
@@ -296,37 +239,35 @@ function Profile({ profileGender, profileData, taggedUsername }) {
                 </div>
               </button>
             </div>
-            {isRecommendOpen && (
-              <div className="profile--header--recommend">
-                <div className="profile--header--recommend--text">
-                  회원님을 위한 추천
-                </div>
-                <div className="profile--header--recommend--profiles">
-                  <div className="profile--header--recommend--profiles--profile">
-                    <button className="profile--header--recommend--profiles--profile--info">
-                      <div className="profile--header--recommend--profiles--profile--info--img">
-                        <img src={profileUser.profileImage} />
-                      </div>
-                      <div className="profile--header--recommend--profiles--profile--info--username">
-                        {profileUser.username}
-                      </div>
-                      <div className="profile--header--recommend--profiles--profile--info--name">
-                        {profileUser.name}
-                      </div>
-                    </button>
-                    <button
-                      className={`profile--header--recommend--profiles--profile--btn${isRecommendedFollowing ? " selected" : ""}`}
-                      aria-pressed={isRecommendedFollowing}
-                      onClick={() =>
-                        setIsRecommendedFollowing((isFollowing) => !isFollowing)
-                      }
-                    >
-                      {isRecommendedFollowing ? "팔로잉" : "팔로우"}
-                    </button>
-                  </div>
+            <div className="profile--header--recommend">
+              <div className="profile--header--recommend--text">
+                회원님을 위한 추천
+              </div>
+              <div className="profile--header--recommend--profiles">
+                <div className="profile--header--recommend--profiles--profile">
+                  <button className="profile--header--recommend--profiles--profile--info">
+                    <div className="profile--header--recommend--profiles--profile--info--img">
+                      <img src={profileUser.profileImage} />
+                    </div>
+                    <div className="profile--header--recommend--profiles--profile--info--username">
+                      {profileUser.username}
+                    </div>
+                    <div className="profile--header--recommend--profiles--profile--info--name">
+                      {profileUser.name}
+                    </div>
+                  </button>
+                  <button
+                    className={`profile--header--recommend--profiles--profile--btn${isRecommendedFollowing ? " selected" : ""}`}
+                    aria-pressed={isRecommendedFollowing}
+                    onClick={() =>
+                      setIsRecommendedFollowing((isFollowing) => !isFollowing)
+                    }
+                  >
+                    {isRecommendedFollowing ? "팔로잉" : "팔로우"}
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
           <div className="profile--posts">
             <div className="profile--posts--selector">

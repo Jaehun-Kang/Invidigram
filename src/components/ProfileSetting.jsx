@@ -61,6 +61,15 @@ function ProfileSetting() {
   const selectedGenderLabel =
     genderOptions.find((option) => option.value === selectedGender)?.label ??
     "성별";
+  const guidanceMessage = !username
+    ? "사용자 이름을 설정해주세요"
+    : !selectedGender
+      ? "성별을 선택해주세요"
+      : statusMessage;
+  const primaryButtonLabel = isCaptureComplete ? "프로필 저장" : "프로필 촬영";
+  const isPrimaryButtonDisabled = isCaptureComplete
+    ? isBusy || !username || !selectedGender
+    : !canStartCapture || !username || !selectedGender;
 
   const saveLoginData = async () => {
     const finalized = await finalize({ username, gender: selectedGender });
@@ -72,6 +81,15 @@ function ProfileSetting() {
       profileImage: iconProfile,
     });
     navigate(finalized.profileRoute, { replace: true });
+  };
+
+  const handlePrimaryButtonClick = () => {
+    if (isCaptureComplete) {
+      void saveLoginData();
+      return;
+    }
+
+    void startCapture();
   };
 
   useEffect(() => {
@@ -158,11 +176,12 @@ function ProfileSetting() {
                         key={option.value}
                         onClick={() => {
                           setSelectedGender(option.value);
+                          setIsGenderOpen(false);
                         }}
                       >
                         {option.label}
                         <div className="profile_setting--profile--info--box--gender--list--option--radio">
-                          <img src={iconCheck} />
+                          <img src={iconCheck} alt="" />
                         </div>
                       </button>
                     ))}
@@ -171,27 +190,18 @@ function ProfileSetting() {
               </div>
             </div>
             <div className="profile_setting--profile--info--message">
-              {statusMessage}
+              {guidanceMessage}
+            </div>
+            <div className="profile_setting--btns">
+              <button
+                className="profile_setting--btns--capture"
+                disabled={isPrimaryButtonDisabled}
+                onClick={handlePrimaryButtonClick}
+              >
+                {primaryButtonLabel}
+              </button>
             </div>
           </div>
-        </div>
-        <div className="profile_setting--btns">
-          <button
-            className="profile_setting--btns--capture"
-            disabled={!canStartCapture}
-            onClick={startCapture}
-          >
-            프로필 촬영
-          </button>
-          <button
-            className="profile_setting--btns--save"
-            disabled={
-              isBusy || !isCaptureComplete || !username || !selectedGender
-            }
-            onClick={saveLoginData}
-          >
-            저장
-          </button>
         </div>
       </div>
     </main>
