@@ -74,14 +74,17 @@ function Sidebar() {
             className="nav--section--btn"
             id="logo"
             type="button"
-            onClick={navigateToProfile}
+            aria-disabled={isProfileSetting}
+            onClick={isProfileSetting ? undefined : navigateToProfile}
           >
             <div className="nav--section--btn--icon">
               <img src={iconLogo} alt="Logo" />
             </div>
           </button>
         </div>
-        <div className="nav--section">
+        <div
+          className={`nav--section nav--profile-links${isProfileSetting ? " hidden" : ""}`}
+        >
           <button
             className={`nav--section--btn${isHomeSelected ? " selected" : ""}`}
             id="home"

@@ -38,6 +38,7 @@
 
 nav {
   position: fixed;
+  z-index: 200;
   display: grid;
   grid-template-rows: min-content 1fr min-content;
   width: 72px;
@@ -110,6 +111,17 @@ nav .nav--section--btn--text {
 nav .nav--section--btn:hover {
   background-color: var(--hover);
   transition: background-color 300ms ease-in-out;
+}
+nav .nav--section.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+nav .nav--section.hidden * {
+  visibility: hidden;
+}
+nav .nav--section.hidden .nav--section--btn--text {
+  visibility: hidden;
+  opacity: 0;
 }
 nav:hover {
   width: 238px;

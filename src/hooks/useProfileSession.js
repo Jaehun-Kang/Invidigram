@@ -5,6 +5,7 @@ import { sessionStore } from "../services/sessionStore.js";
 
 const kioskInstanceId = "invidigram-windows-dev";
 const staleCaptureStates = new Set(["CAPTURING", "RECOVERY_REQUIRED"]);
+const completedProfileStates = new Set(["FINALIZED", "ACTIVE_PROFILE"]);
 const staleStartErrorCodes = new Set([
   "AUTH_INVALID",
   "INVALID_SESSION_TRANSITION",
@@ -15,6 +16,18 @@ const toCredentials = (session) => ({
   sessionId: session.sessionId,
   sessionToken: session.sessionToken,
 });
+
+const isCompletedProfileSession = (session) =>
+  completedProfileStates.has(session?.state);
+
+const isProfileFinalizable = (session) =>
+  session?.capture?.state === "COMPLETE" &&
+  ["MODEL_READY", "PROFILE_READY"].includes(session?.state);
+
+const shouldReplaceForNewProfileSetup = (session) =>
+  isCompletedProfileSession(session) ||
+  session?.capture?.state === "COMPLETE" ||
+  ["MODEL_READY", "PROFILE_READY"].includes(session?.state);
 
 const formatCaptureStatusMessage = (status) => {
   const step =
@@ -68,7 +81,11 @@ export const useProfileSession = () => {
         if (stored) {
           try {
             current = { ...(await bridgeClient.getSession(stored)), ...stored };
-            if (
+            if (shouldReplaceForNewProfileSetup(current)) {
+              await bridgeClient.resetActiveSessions();
+              sessionStore.clear();
+              current = null;
+            } else if (
               staleCaptureStates.has(current.state) ||
               staleCaptureStates.has(current.capture.state)
             ) {
@@ -88,9 +105,7 @@ export const useProfileSession = () => {
           setSession(current ?? null);
           setIsBridgeReady(true);
           setStatusMessage(
-            current?.capture.state === "COMPLETE"
-              ? "프로필 촬영 완료"
-              : "프로필 촬영을 진행해주세요",
+            "프로필 촬영을 진행해주세요",
           );
           setCaptureCountdown(null);
         }
@@ -121,6 +136,13 @@ export const useProfileSession = () => {
     return current;
   };
 
+  const replaceProfileSession = async () => {
+    await bridgeClient.resetActiveSessions();
+    sessionStore.clear();
+    setSession(null);
+    return createProfileSession();
+  };
+
   const refreshSession = async (activeSession = session) => {
     const credentials = toCredentials(activeSession);
     const next = {
@@ -132,6 +154,10 @@ export const useProfileSession = () => {
   };
 
   const requestCaptureStart = async (activeSession) => {
+    if (isCompletedProfileSession(activeSession)) {
+      return requestCaptureStart(await replaceProfileSession());
+    }
+
     const credentials = toCredentials(activeSession);
     const next =
       activeSession.capture.state === "COMPLETE"
@@ -148,11 +174,14 @@ export const useProfileSession = () => {
         ...(await bridgeClient.cancelCapture(credentials)),
         ...credentials,
       };
+      if (shouldReplaceForNewProfileSetup(cancelled)) {
+        return requestCaptureStart(await replaceProfileSession());
+      }
       sessionStore.save(cancelled);
       setSession(cancelled);
       return requestCaptureStart(cancelled);
     } catch (error) {
-      if (error?.code !== "AUTH_INVALID") {
+      if (!staleStartErrorCodes.has(error?.code)) {
         throw error;
       }
     }
@@ -209,7 +238,24 @@ export const useProfileSession = () => {
     setStatusMessage("카메라를 준비하는 중");
 
     try {
-      const activeSession = session ?? (await createProfileSession());
+      let activeSession = session;
+      if (activeSession) {
+        try {
+          activeSession = await refreshSession(activeSession);
+        } catch (error) {
+          if (!staleStartErrorCodes.has(error?.code)) {
+            throw error;
+          }
+          sessionStore.clear();
+          activeSession = null;
+        }
+      }
+
+      if (shouldReplaceForNewProfileSetup(activeSession)) {
+        activeSession = await replaceProfileSession();
+      }
+
+      activeSession ??= await createProfileSession();
       let nextSession;
 
       try {
@@ -236,7 +282,7 @@ export const useProfileSession = () => {
   };
 
   const finalize = async (profile) => {
-    if (!session || isBusy) return null;
+    if (!isProfileFinalizable(session)) return null;
     setIsBusy(true);
     setStatusMessage("프로필을 저장하는 중");
 
@@ -270,11 +316,13 @@ export const useProfileSession = () => {
           "CAPTURE_FAILED",
           "MODEL_FAILED",
           "RECOVERY_REQUIRED",
+          "FINALIZED",
+          "ACTIVE_PROFILE",
         ].includes(session.state)),
     captureCountdown,
     finalize,
     isBusy,
-    isCaptureComplete: session?.capture.state === "COMPLETE",
+    isCaptureComplete: isProfileFinalizable(session),
     session,
     startCapture,
     statusMessage,

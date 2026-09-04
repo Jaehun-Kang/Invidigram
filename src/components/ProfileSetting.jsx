@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import iconProfile from "../assets/icons/profile.svg";
 import iconRefresh from "../assets/icons/refresh.svg";
 import iconCheck from "../assets/icons/check.svg";
+import iconLoading from "../assets/icons/loading.svg";
 import usernameWords from "../data/usernameWords.json";
 import { saveCurrentAudience } from "../utils/audienceStore.js";
 import convertKoreanToQwerty from "../utils/convertKoreanToQwerty.js";
@@ -56,9 +57,13 @@ const logPreviewError = (message, error) => {
 
 function ProfileSetting() {
   const navigate = useNavigate();
+  const autoFinalizeStartedRef = useRef(false);
   const genderRef = useRef(null);
   const lastUsernameWordRef = useRef("");
+  const saveLoginDataRef = useRef(null);
   const [username, setUsername] = useState("");
+  const [autoFinalizeMessage, setAutoFinalizeMessage] = useState("");
+  const [isAutoFinalizing, setIsAutoFinalizing] = useState(false);
   const [isGenderOpen, setIsGenderOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
   const [selectedGender, setSelectedGender] = useState("");
@@ -78,30 +83,29 @@ function ProfileSetting() {
     ? "사용자 이름을 설정해주세요"
     : !selectedGender
       ? "성별을 선택해주세요"
-      : statusMessage;
-  const primaryButtonLabel = isCaptureComplete ? "프로필 저장" : "프로필 촬영";
-  const isPrimaryButtonDisabled = isCaptureComplete
-    ? isBusy || !username || !selectedGender
-    : !canStartCapture || !username || !selectedGender;
+      : autoFinalizeMessage || statusMessage;
+  const isCaptureRunning = isBusy && !isAutoFinalizing;
+  const isPrimaryButtonDisabled =
+    isBusy || isAutoFinalizing || !canStartCapture || !username || !selectedGender;
 
   const saveLoginData = async () => {
     const finalized = await finalize({ username, gender: selectedGender });
 
-    if (!finalized) return;
+    if (!finalized) return false;
     saveCurrentAudience({
       username,
       gender: selectedGender,
       profileImage: finalized.profileImage ?? iconProfile,
     });
     navigate(finalized.profileRoute, { replace: true });
+    return true;
   };
 
-  const handlePrimaryButtonClick = async () => {
-    if (isCaptureComplete) {
-      void saveLoginData();
-      return;
-    }
+  saveLoginDataRef.current = saveLoginData;
 
+  const handlePrimaryButtonClick = async () => {
+    autoFinalizeStartedRef.current = false;
+    setAutoFinalizeMessage("");
     setPreviewUrl("");
 
     try {
@@ -113,6 +117,40 @@ function ProfileSetting() {
 
     await startCapture();
   };
+
+  useEffect(() => {
+    if (
+      !isCaptureComplete ||
+      !username ||
+      !selectedGender ||
+      autoFinalizeStartedRef.current
+    ) {
+      return undefined;
+    }
+
+    autoFinalizeStartedRef.current = true;
+    setAutoFinalizeMessage("프로필 촬영 완료");
+    setIsAutoFinalizing(true);
+
+    const timer = window.setTimeout(() => {
+      setAutoFinalizeMessage("얼굴 데이터 분석중");
+      saveLoginDataRef.current()
+        .then((saved) => {
+          if (!saved) {
+            autoFinalizeStartedRef.current = false;
+            setAutoFinalizeMessage("프로필 저장을 다시 시도해주세요");
+          }
+        })
+        .catch((error) => logPreviewError("Automatic profile finalize failed", error))
+        .finally(() => {
+          setIsAutoFinalizing(false);
+        });
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isCaptureComplete, selectedGender, username]);
 
   useEffect(() => {
     if (!isGenderOpen) {
@@ -245,7 +283,23 @@ function ProfileSetting() {
                 disabled={isPrimaryButtonDisabled}
                 onClick={handlePrimaryButtonClick}
               >
-                {primaryButtonLabel}
+                {isAutoFinalizing ? (
+                  <span
+                    style={{
+                      alignItems: "center",
+                      display: "inline-flex",
+                      height: "100%",
+                      justifyContent: "center",
+                      width: "100%",
+                    }}
+                  >
+                    <img src={iconLoading} alt="" />
+                  </span>
+                ) : isCaptureRunning ? (
+                  "프로필 촬영 중"
+                ) : (
+                  "프로필 촬영"
+                )}
               </button>
             </div>
           </div>

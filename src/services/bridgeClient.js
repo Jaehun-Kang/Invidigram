@@ -16,6 +16,7 @@ export class BridgeClient {
   } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.fetchImpl = fetchImpl;
+    this.logSubscription = null;
   }
 
   getHealth() {
@@ -28,6 +29,38 @@ export class BridgeClient {
 
   getCameraPreviewStreamUrl() {
     return `${this.baseUrl}/v2/camera/preview-stream?timestamp=${Date.now()}`;
+  }
+
+  startLogForwarding() {
+    if (this.logSubscription || typeof EventSource === "undefined") {
+      return () => this.stopLogForwarding();
+    }
+
+    const source = new EventSource(`${this.baseUrl}/v2/logs/stream`);
+    this.logSubscription = source;
+    source.addEventListener("message", (event) => {
+      try {
+        const log = JSON.parse(event.data);
+        const method = log.level === "error" ? "error" : log.level === "warn" ? "warn" : "info";
+        const [message = "[BIB] Log", ...args] = log.args ?? [];
+        console[method](message, ...args);
+      } catch (error) {
+        console.warn("[BI] BIB log forwarding failed", error);
+      }
+    });
+    source.addEventListener("error", () => {
+      source.close();
+      if (this.logSubscription === source) {
+        this.logSubscription = null;
+      }
+    });
+
+    return () => this.stopLogForwarding();
+  }
+
+  stopLogForwarding() {
+    this.logSubscription?.close();
+    this.logSubscription = null;
   }
 
   resetActiveSessions() {

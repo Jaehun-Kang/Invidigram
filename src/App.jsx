@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Sidebar from "./components/Sidebar.jsx";
 import Profile from "./components/Profile.jsx";
@@ -5,6 +6,7 @@ import ProfileSetting from "./components/ProfileSetting.jsx";
 import MyProfile from "./components/MyProfile.jsx";
 import profileMale from "./data/profile_male.json";
 import profileFemale from "./data/profile_female.json";
+import { bridgeClient } from "./services/bridgeClient.js";
 import { getCurrentAudience } from "./utils/audienceStore.js";
 import "./styles/App.css";
 
@@ -71,6 +73,8 @@ const pages = [
 ];
 
 function App() {
+  useEffect(() => bridgeClient.startLogForwarding(), []);
+
   return (
     <>
       <Sidebar />

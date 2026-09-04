@@ -681,6 +681,7 @@ const runProfilePixelTransition = async ({
   faceBox,
   faceLandmarks,
   imageElement,
+  onFirstFrame,
   src,
 }) => {
   console.info("[BI] Profile pixel transition start", {
@@ -757,6 +758,7 @@ const runProfilePixelTransition = async ({
     "display:block",
     "pointer-events:none",
     "opacity:1",
+    "z-index:3",
     "transition:opacity 140ms ease",
     "visibility:hidden",
   ].join(";");
@@ -811,6 +813,7 @@ const runProfilePixelTransition = async ({
       if (event.data.imgId !== imgId) return;
 
       if (event.data.type === "FIRST_FRAME") {
+        onFirstFrame?.();
         canvas.style.visibility = "visible";
       }
 
@@ -877,11 +880,14 @@ function ProfileTransformAvatar({
   const containerRef = useRef(null);
   const imageRef = useRef(null);
   const transitionKeyRef = useRef(null);
-  const [displaySrc, setDisplaySrc] = useState(baseSrc);
+  const transformedImageRef = useRef(null);
+  const [committedSrc, setCommittedSrc] = useState(null);
+  const [showTransformedImage, setShowTransformedImage] = useState(false);
 
   useEffect(() => {
     transitionKeyRef.current = null;
-    setDisplaySrc(baseSrc);
+    setCommittedSrc(null);
+    setShowTransformedImage(false);
   }, [baseSrc]);
 
   useEffect(() => {
@@ -893,9 +899,9 @@ function ProfileTransformAvatar({
       !container ||
       !imageElement ||
       !src ||
+      src === baseSrc ||
       !faceBox ||
       !Array.isArray(faceLandmarks) ||
-      displaySrc === src ||
       transitionKeyRef.current === transitionKey
     ) {
       return undefined;
@@ -905,21 +911,31 @@ function ProfileTransformAvatar({
     let cleanupOverlay = null;
     transitionKeyRef.current = transitionKey;
 
-    const render = async () =>
-      runProfilePixelTransition({
+    const render = async () => {
+      const transformedImage = transformedImageRef.current;
+      if (transformedImage?.decode) {
+        await transformedImage.decode();
+      }
+      if (cancelled) return null;
+      setCommittedSrc(src);
+      return runProfilePixelTransition({
         baseSrc,
         container,
         faceBox,
         faceLandmarks,
         imageElement,
+        onFirstFrame: () => {
+          if (!cancelled) setShowTransformedImage(true);
+        },
         src,
       });
+    };
 
     render()
       .then(async (result) => {
         cleanupOverlay = result?.cleanup || null;
         if (cancelled) return;
-        setDisplaySrc(src);
+        setShowTransformedImage(true);
         await new Promise((resolve) => requestAnimationFrame(resolve));
         await new Promise((resolve) => requestAnimationFrame(resolve));
         if (!cancelled) cleanupOverlay?.();
@@ -927,7 +943,7 @@ function ProfileTransformAvatar({
       .catch((error) => {
         if (cancelled) return;
         console.warn("[BI] Profile canvas transition failed", error);
-        setDisplaySrc(src);
+        setShowTransformedImage(true);
       });
 
     return () => {
@@ -955,15 +971,32 @@ function ProfileTransformAvatar({
       }}
     >
       <img
+        ref={transformedImageRef}
+        src={committedSrc || src || baseSrc}
+        alt=""
+        aria-hidden="true"
+        style={{
+          height: "100%",
+          inset: 0,
+          objectFit: "cover",
+          opacity: committedSrc && showTransformedImage ? 1 : 0,
+          position: "absolute",
+          width: "100%",
+          zIndex: 1,
+        }}
+      />
+      <img
         ref={imageRef}
-        src={displaySrc}
+        src={baseSrc}
         alt={alt}
         style={{
           height: "100%",
           inset: 0,
           objectFit: "cover",
+          opacity: committedSrc && showTransformedImage ? 0 : 1,
           position: "absolute",
           width: "100%",
+          zIndex: 2,
         }}
       />
     </div>
@@ -991,7 +1024,6 @@ function Profile({
     ...profileData.user,
     profileImage:
       (canUseProfileTransforms && transforms.urls[profileAsset?.assetId]) ||
-      (canUseProfileTransforms && profileAsset?.originalPath) ||
       baseProfileImage,
   };
   const recommendedUser = recommendedProfileData
