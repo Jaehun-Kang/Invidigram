@@ -4,16 +4,43 @@ import { extensionClient } from "../services/extensionClient.js";
 import { sessionStore } from "../services/sessionStore.js";
 
 const kioskInstanceId = "invidigram-windows-dev";
+const staleCaptureStates = new Set(["CAPTURING", "RECOVERY_REQUIRED"]);
+const staleStartErrorCodes = new Set([
+  "AUTH_INVALID",
+  "INVALID_SESSION_TRANSITION",
+]);
+const captureTotalSteps = 4;
 
 const toCredentials = (session) => ({
   sessionId: session.sessionId,
   sessionToken: session.sessionToken,
 });
 
+const formatCaptureStatusMessage = (status) => {
+  const step =
+    status.step ?? Math.min(status.completedSlots.length + 1, captureTotalSteps);
+  const totalSteps = status.totalSteps ?? captureTotalSteps;
+  const instruction = status.instruction || "정면을 바라봐주세요";
+
+  return `${instruction} ${step}/${totalSteps}`;
+};
+
+const logSessionError = (message, error) => {
+  console.warn(`[BI] ${message}`, {
+    code: error?.code,
+    message: error?.message,
+    status: error?.status,
+    retryable: error?.retryable,
+    requestId: error?.requestId,
+  });
+};
+
 export const useProfileSession = () => {
   const [session, setSession] = useState(null);
   const [statusMessage, setStatusMessage] = useState("Bridge 연결 확인 중");
   const [isBusy, setIsBusy] = useState(true);
+  const [isBridgeReady, setIsBridgeReady] = useState(false);
+  const [captureCountdown, setCaptureCountdown] = useState(null);
   const pollTimer = useRef(null);
 
   useEffect(() => {
@@ -41,30 +68,36 @@ export const useProfileSession = () => {
         if (stored) {
           try {
             current = { ...(await bridgeClient.getSession(stored)), ...stored };
-          } catch {
+            if (
+              staleCaptureStates.has(current.state) ||
+              staleCaptureStates.has(current.capture.state)
+            ) {
+              current = {
+                ...(await bridgeClient.cancelCapture(stored)),
+                ...stored,
+              };
+              sessionStore.save(current);
+            }
+          } catch (error) {
+            logSessionError("Stored profile session could not be restored", error);
             sessionStore.clear();
           }
         }
 
-        if (!current) {
-          current = await bridgeClient.createSession(
-            kioskInstanceId,
-            crypto.randomUUID(),
-          );
-          sessionStore.save(current);
-        }
-
         if (!cancelled) {
-          setSession(current);
+          setSession(current ?? null);
+          setIsBridgeReady(true);
           setStatusMessage(
-            current.capture.state === "COMPLETE"
+            current?.capture.state === "COMPLETE"
               ? "프로필 촬영 완료"
               : "프로필 촬영을 진행해주세요",
           );
+          setCaptureCountdown(null);
         }
       } catch (error) {
+        logSessionError("Profile session connection failed", error);
         if (!cancelled) {
-          setStatusMessage(`연결 오류: ${error.code ?? error.message}`);
+          setStatusMessage("프로필 촬영을 준비하지 못했습니다");
         }
       } finally {
         if (!cancelled) setIsBusy(false);
@@ -78,8 +111,18 @@ export const useProfileSession = () => {
     };
   }, []);
 
-  const refreshSession = async () => {
-    const credentials = toCredentials(session);
+  const createProfileSession = async () => {
+    const current = await bridgeClient.createSession(
+      kioskInstanceId,
+      crypto.randomUUID(),
+    );
+    sessionStore.save(current);
+    setSession(current);
+    return current;
+  };
+
+  const refreshSession = async (activeSession = session) => {
+    const credentials = toCredentials(activeSession);
     const next = {
       ...(await bridgeClient.getSession(credentials)),
       ...credentials,
@@ -88,49 +131,106 @@ export const useProfileSession = () => {
     return next;
   };
 
-  const pollCapture = async () => {
+  const requestCaptureStart = async (activeSession) => {
+    const credentials = toCredentials(activeSession);
+    const next =
+      activeSession.capture.state === "COMPLETE"
+        ? await bridgeClient.retryCapture(credentials)
+        : await bridgeClient.startCapture(credentials);
+    return { ...next, ...credentials };
+  };
+
+  const recoverCaptureStart = async (activeSession) => {
+    const credentials = toCredentials(activeSession);
+
     try {
+      const cancelled = {
+        ...(await bridgeClient.cancelCapture(credentials)),
+        ...credentials,
+      };
+      sessionStore.save(cancelled);
+      setSession(cancelled);
+      return requestCaptureStart(cancelled);
+    } catch (error) {
+      if (error?.code !== "AUTH_INVALID") {
+        throw error;
+      }
+    }
+
+    sessionStore.clear();
+    setSession(null);
+    return requestCaptureStart(await createProfileSession());
+  };
+
+  const pollCapture = async (activeSession = session) => {
+    if (!activeSession) return;
+
+    try {
+      const credentials = toCredentials(activeSession);
       const status = await bridgeClient.getCaptureStatus(
-        toCredentials(session),
+        credentials,
       );
 
       if (status.state === "COMPLETE") {
-        await refreshSession();
+        await refreshSession(activeSession);
         setStatusMessage("프로필 촬영 완료");
+        setCaptureCountdown(null);
         setIsBusy(false);
         return;
       }
 
       if (status.state === "FAILED") {
+        await refreshSession(activeSession);
         setStatusMessage("촬영에 실패했습니다. 다시 시도해주세요");
+        setCaptureCountdown(null);
         setIsBusy(false);
         return;
       }
 
-      setStatusMessage(`촬영 진행 중 ${status.completedSlots.length}/3`);
-      pollTimer.current = setTimeout(pollCapture, 500);
+      setStatusMessage(formatCaptureStatusMessage(status));
+      setCaptureCountdown(
+        Number.isFinite(status.remainingMs)
+          ? Math.max(1, Math.ceil(status.remainingMs / 1000))
+          : null,
+      );
+      pollTimer.current = setTimeout(() => pollCapture(activeSession), 500);
     } catch (error) {
-      setStatusMessage(`촬영 상태 오류: ${error.code ?? error.message}`);
+      logSessionError("Capture status polling failed", error);
+      setStatusMessage("촬영 상태를 확인하지 못했습니다");
+      setCaptureCountdown(null);
       setIsBusy(false);
     }
   };
 
   const startCapture = async () => {
-    if (!session || isBusy) return;
+    if (!isBridgeReady || isBusy) return;
     setIsBusy(true);
+    setCaptureCountdown(null);
     setStatusMessage("카메라를 준비하는 중");
 
     try {
-      const credentials = toCredentials(session);
-      const next =
-        session.capture.state === "COMPLETE"
-          ? await bridgeClient.retryCapture(credentials)
-          : await bridgeClient.startCapture(credentials);
-      setSession({ ...next, ...credentials });
-      setStatusMessage("정면부터 순서대로 촬영해주세요");
-      pollTimer.current = setTimeout(pollCapture, 500);
+      const activeSession = session ?? (await createProfileSession());
+      let nextSession;
+
+      try {
+        nextSession = await requestCaptureStart(activeSession);
+      } catch (error) {
+        if (!staleStartErrorCodes.has(error?.code)) {
+          throw error;
+        }
+
+        logSessionError("Stale profile session was cancelled", error);
+        nextSession = await recoverCaptureStart(activeSession);
+      }
+
+      setSession(nextSession);
+      setStatusMessage(formatCaptureStatusMessage(nextSession.capture));
+      setCaptureCountdown(null);
+      pollTimer.current = setTimeout(() => pollCapture(nextSession), 500);
     } catch (error) {
-      setStatusMessage(`촬영 시작 오류: ${error.code ?? error.message}`);
+      logSessionError("Capture start failed", error);
+      setStatusMessage("촬영을 시작하지 못했습니다. 다시 시도해주세요");
+      setCaptureCountdown(null);
       setIsBusy(false);
     }
   };
@@ -146,9 +246,12 @@ export const useProfileSession = () => {
       const finalized = await bridgeClient.finalizeSession(credentials);
       setSession({ ...finalized, ...credentials });
       setStatusMessage("프로필 저장 완료");
+      setCaptureCountdown(null);
       return finalized;
     } catch (error) {
-      setStatusMessage(`저장 오류: ${error.code ?? error.message}`);
+      logSessionError("Profile finalize failed", error);
+      setStatusMessage("프로필을 저장하지 못했습니다. 다시 시도해주세요");
+      setCaptureCountdown(null);
       return null;
     } finally {
       setIsBusy(false);
@@ -157,13 +260,18 @@ export const useProfileSession = () => {
 
   return {
     canStartCapture:
-      [
-        "CREATED",
-        "MODEL_READY",
-        "PROFILE_READY",
-        "CAPTURE_FAILED",
-        "MODEL_FAILED",
-      ].includes(session?.state) && !isBusy,
+      isBridgeReady &&
+      !isBusy &&
+      (!session ||
+        [
+          "CREATED",
+          "MODEL_READY",
+          "PROFILE_READY",
+          "CAPTURE_FAILED",
+          "MODEL_FAILED",
+          "RECOVERY_REQUIRED",
+        ].includes(session.state)),
+    captureCountdown,
     finalize,
     isBusy,
     isCaptureComplete: session?.capture.state === "COMPLETE",

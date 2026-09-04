@@ -1,6 +1,12 @@
 import iconProfile from "../assets/icons/profile.svg";
 import { getCurrentAudience } from "../utils/audienceStore.js";
 
+const avatarImageStyle = {
+  height: "150px",
+  objectFit: "cover",
+  width: "150px",
+};
+
 function MyProfile() {
   const currentAudience = getCurrentAudience();
   const username = currentAudience?.username ?? "username";
@@ -14,6 +20,7 @@ function MyProfile() {
               className="profile--header--details--img"
               src={currentAudience?.profileImage ?? iconProfile}
               alt="Profile"
+              style={avatarImageStyle}
             />
             <div className="profile--header--details--info">
               <div className="profile--header--details--info--username">
@@ -46,9 +53,7 @@ function MyProfile() {
               <div
                 className="profile--posts--frames--frame"
                 key={`my-empty-${index}`}
-              >
-                <img src="" alt="" />
-              </div>
+              />
             ))}
           </div>
         </div>

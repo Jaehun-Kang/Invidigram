@@ -12,11 +12,11 @@ const getInitialProfilePath = () => {
   const loginData = getCurrentAudience();
 
   if (loginData?.gender === "male") {
-    return "/profile_a";
+    return "/jin.d0uble0";
   }
 
   if (loginData?.gender === "female") {
-    return "/profile_b";
+    return "/we_r_0";
   }
 
   return "/profile-setting";
@@ -37,28 +37,36 @@ const pages = [
     element: <MyProfile />,
   },
   {
-    path: "/profile_a",
+    path: "/jin.d0uble0",
     //활성화 방법: FinalizedSessionRoute를 import하고 이 Profile을 profileGender="male" wrapper로 감싸세요.
     element: (
       <Profile
         key="profile_male"
         profileGender="male"
         profileData={profileMale}
-        taggedUsername="username_female"
+        recommendedProfileData={profileFemale}
+        recommendedProfilePath="/we_r_0"
+        taggedUsername="we_r_0"
       />
     ),
   },
   {
-    path: "/profile_b",
+    path: "/we_r_0",
     //활성화 방법: FinalizedSessionRoute를 import하고 이 Profile을 profileGender="female" wrapper로 감싸세요.
     element: (
       <Profile
         key="profile_female"
         profileGender="female"
         profileData={profileFemale}
-        taggedUsername="username_male"
+        recommendedProfileData={profileMale}
+        recommendedProfilePath="/jin.d0uble0"
+        taggedUsername="jin.d0uble0"
       />
     ),
+  },
+  {
+    path: "/:username",
+    element: <MyProfile />,
   },
 ];
 

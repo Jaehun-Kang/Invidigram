@@ -6,7 +6,7 @@ const isSession = (value) =>
   typeof value.sessionId === "string" &&
   typeof value.sessionToken === "string";
 
-export const createSessionStore = (storage = globalThis.sessionStorage) => ({
+export const createSessionStore = (storage = globalThis.localStorage) => ({
   load() {
     try {
       const value = JSON.parse(storage.getItem(SESSION_KEY));

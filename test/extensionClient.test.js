@@ -20,7 +20,7 @@ const createFakeWindow = () => {
   };
 };
 
-test("matches an Extension v2 health response to its request", async () => {
+test("matches a BIE health response to its request", async () => {
   const windowObject = createFakeWindow();
   const client = new ExtensionClient({
     windowObject,

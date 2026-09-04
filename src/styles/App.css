@@ -66,6 +66,7 @@ nav .nav--section--btn--icon {
   height: 24px;
   border-radius: 8px;
   position: relative;
+  overflow: hidden;
 }
 nav .nav--section--btn--icon img {
   position: absolute;
@@ -162,10 +163,35 @@ main .profile_setting--profile {
 }
 main .profile_setting--profile--img {
   width: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background-color: var(--secondary);
+  position: relative;
 }
 main .profile_setting--profile--img img {
   width: 100%;
   aspect-ratio: 1;
+}
+main .profile_setting--profile--img img.is-live {
+  height: 100%;
+  -o-object-fit: cover;
+     object-fit: cover;
+}
+main .profile_setting--profile--img--countdown {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.82);
+  display: flex;
+  font-size: 144px;
+  font-weight: 800;
+  inset: 0;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.28);
 }
 main .profile_setting--profile--info {
   width: 100%;
@@ -353,6 +379,8 @@ main .profile--header--details--img {
   aspect-ratio: 1;
   border-radius: 50%;
   border: 1px solid var(--profile-outline);
+  -o-object-fit: cover;
+     object-fit: cover;
 }
 main .profile--header--details--info {
   display: grid;
@@ -419,8 +447,11 @@ main .profile--header--highlights--highlight--thumbnail {
 }
 main .profile--header--highlights--highlight--thumbnail > img {
   width: 100%;
+  height: 100%;
   aspect-ratio: 1;
   border-radius: 100%;
+  -o-object-fit: cover;
+     object-fit: cover;
 }
 main .profile--header--highlights--highlight--title {
   color: var(--black);
@@ -471,7 +502,10 @@ main .profile--header--recommend--profiles--profile--info--img {
 }
 main .profile--header--recommend--profiles--profile--info--img > img {
   width: 100%;
+  height: 100%;
   aspect-ratio: 1;
+  -o-object-fit: cover;
+     object-fit: cover;
 }
 main .profile--header--recommend--profiles--profile--info--username {
   padding-block: 4px 8px;
@@ -660,8 +694,11 @@ main .post_overlay--content--comment_section--profile--img {
 }
 main .post_overlay--content--comment_section--profile--img > img {
   width: 100%;
+  height: 100%;
   aspect-ratio: 1;
   border-radius: 50%;
+  -o-object-fit: cover;
+     object-fit: cover;
 }
 main .post_overlay--content--comment_section--profile--username {
   font-size: 14px;
@@ -690,8 +727,11 @@ main .post_overlay--content--comment_section--comment--main--img {
 }
 main .post_overlay--content--comment_section--comment--main--img > img {
   width: 100%;
+  height: 100%;
   aspect-ratio: 1;
   border-radius: 50%;
+  -o-object-fit: cover;
+     object-fit: cover;
 }
 main .post_overlay--content--comment_section--comment--main--text {
   width: 100%;

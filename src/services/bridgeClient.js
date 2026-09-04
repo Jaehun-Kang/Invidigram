@@ -22,6 +22,32 @@ export class BridgeClient {
     return this.#request("/v2/health");
   }
 
+  startCameraPreview() {
+    return this.#request("/v2/camera/preview/start", { method: "POST" });
+  }
+
+  getCameraPreviewStreamUrl() {
+    return `${this.baseUrl}/v2/camera/preview-stream?timestamp=${Date.now()}`;
+  }
+
+  resetActiveSessions() {
+    return this.#request("/v2/sessions/reset-active", { method: "POST" });
+  }
+
+  async getCameraPreviewBlob() {
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/v2/camera/preview?timestamp=${Date.now()}`,
+      { cache: "no-store" },
+    );
+
+    if (!response.ok) {
+      const payload = await response.json();
+      throw new BridgeApiError(response.status, payload.error);
+    }
+
+    return response.blob();
+  }
+
   createSession(kioskInstanceId, idempotencyKey) {
     return this.#request("/v2/sessions", {
       method: "POST",
@@ -81,10 +107,6 @@ export class BridgeClient {
 
   async getTransformResultBlob(session, resultUrl) {
     return this.#getSessionBlob(session, resultUrl);
-  }
-
-  async getTransformAnimationBlob(session, animationUrl) {
-    return this.#getSessionBlob(session, animationUrl);
   }
 
   async #getSessionBlob(session, url) {

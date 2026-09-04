@@ -6,6 +6,7 @@ import iconCheck from "../assets/icons/check.svg";
 import usernameWords from "../data/usernameWords.json";
 import { saveCurrentAudience } from "../utils/audienceStore.js";
 import convertKoreanToQwerty from "../utils/convertKoreanToQwerty.js";
+import { bridgeClient } from "../services/bridgeClient.js";
 import { useProfileSession } from "../hooks/useProfileSession.js";
 
 const genderOptions = [
@@ -43,15 +44,27 @@ const createUsernameSuggestion = (previousWord) => {
   };
 };
 
+const logPreviewError = (message, error) => {
+  console.warn(`[BI] ${message}`, {
+    code: error?.code,
+    message: error?.message,
+    status: error?.status,
+    retryable: error?.retryable,
+    requestId: error?.requestId,
+  });
+};
+
 function ProfileSetting() {
   const navigate = useNavigate();
   const genderRef = useRef(null);
   const lastUsernameWordRef = useRef("");
   const [username, setUsername] = useState("");
   const [isGenderOpen, setIsGenderOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState("");
   const [selectedGender, setSelectedGender] = useState("");
   const {
     canStartCapture,
+    captureCountdown,
     finalize,
     isBusy,
     isCaptureComplete,
@@ -78,18 +91,27 @@ function ProfileSetting() {
     saveCurrentAudience({
       username,
       gender: selectedGender,
-      profileImage: iconProfile,
+      profileImage: finalized.profileImage ?? iconProfile,
     });
     navigate(finalized.profileRoute, { replace: true });
   };
 
-  const handlePrimaryButtonClick = () => {
+  const handlePrimaryButtonClick = async () => {
     if (isCaptureComplete) {
       void saveLoginData();
       return;
     }
 
-    void startCapture();
+    setPreviewUrl("");
+
+    try {
+      await bridgeClient.startCameraPreview();
+      setPreviewUrl(bridgeClient.getCameraPreviewStreamUrl());
+    } catch (error) {
+      logPreviewError("Camera preview start failed", error);
+    }
+
+    await startCapture();
   };
 
   useEffect(() => {
@@ -115,7 +137,32 @@ function ProfileSetting() {
       <div className="profile_setting">
         <div className="profile_setting--profile">
           <div className="profile_setting--profile--img">
-            <img src={iconProfile} alt="Profile image placeholder" />
+            <img
+              className={previewUrl ? "is-live" : ""}
+              src={previewUrl || iconProfile}
+              alt="Profile camera preview"
+            />
+            {captureCountdown !== null && (
+              <div
+                className="profile_setting--profile--img--countdown"
+                aria-live="polite"
+                style={{
+                  alignItems: "center",
+                  color: "rgba(255, 255, 255, 0.82)",
+                  display: "flex",
+                  fontSize: "clamp(96px, 16vw, 168px)",
+                  fontWeight: 800,
+                  inset: 0,
+                  justifyContent: "center",
+                  lineHeight: 1,
+                  pointerEvents: "none",
+                  position: "absolute",
+                  textShadow: "0 2px 24px rgba(0, 0, 0, 0.28)",
+                }}
+              >
+                {captureCountdown}
+              </div>
+            )}
           </div>
           <div className="profile_setting--profile--info">
             <div className="profile_setting--profile--info--box">

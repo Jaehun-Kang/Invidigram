@@ -1,8 +1,8 @@
 {
   "user": {
-    "username": "username_male",
-    "name": "name",
-    "profileImage": "../assets/icons/profile.svg"
+    "username": "jin.d0uble0",
+    "name": "공영진",
+    "profileImage": "../assets/img/male/male_profile.png"
   },
   "stats": {
     "followers": 1,
@@ -11,15 +11,15 @@
   "posts": [
     {
       "id": 1,
-      "image": "../assets/profile/temp_portrait_7980ff.svg",
+      "image": "../assets/img/male/male_post_260818.svg",
       "caption": "대한민국의 영토는 한반도와 그 부속도서로 한다. 모든 국민은 근로의 권리를 가진다. 국가는 사회적·경제적 방법으로 근로자의 고용의 증진과 적정임금의 보장에 노력하여야 하며, 법률이 정하는 바에 의하여 최저임금제를 시행하여야 한다.",
       "timestamp": 20260818,
       "likes": 24,
-      "taggedUsernames": ["username_female"]
+      "taggedUsernames": ["we_r_0"]
     },
     {
       "id": 2,
-      "image": "../assets/profile/temp_square_7980ff.svg",
+      "image": "../assets/img/male/male_post_260702.svg",
       "caption": "",
       "timestamp": 20260702,
       "likes": 58,
@@ -27,11 +27,11 @@
     },
     {
       "id": 3,
-      "image": "../assets/profile/temp_landscape_7980ff.svg",
+      "image": "../assets/img/male/male_post_260611.svg",
       "caption": "모든 국민은 근로의 권리를 가진다. 국가는 사회적·경제적 방법으로 근로자의 고용의 증진에 노력하여야 한다.",
       "timestamp": 20260611,
       "likes": 103,
-      "taggedUsernames": ["username_female"]
+      "taggedUsernames": ["we_r_0"]
     }
   ]
 }

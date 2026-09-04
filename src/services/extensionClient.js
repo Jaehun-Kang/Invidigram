@@ -18,7 +18,7 @@ export class ExtensionClient {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.window.removeEventListener("message", onMessage);
-        reject(new Error("Extension v2 handshake timed out"));
+        reject(new Error("BIE handshake timed out"));
       }, this.timeoutMs);
 
       const onMessage = (event) => {

@@ -7,12 +7,15 @@ import {
   clearCurrentAudience,
   getCurrentAudience,
 } from "../utils/audienceStore.js";
+import { bridgeClient } from "../services/bridgeClient.js";
 import { logoutCurrentSession } from "../services/sessionLifecycle.js";
+import { sessionStore } from "../services/sessionStore.js";
 
 function Sidebar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const isHomeSelected = pathname === "/profile_a" || pathname === "/profile_b";
+  const currentAudience = getCurrentAudience();
+  const isHomeSelected = pathname === "/jin.d0uble0" || pathname === "/we_r_0";
   const isProfileSelected = pathname === "/my-profile";
   const isProfileSetting = pathname === "/profile-setting";
 
@@ -20,23 +23,43 @@ function Sidebar() {
     const currentAudience = getCurrentAudience();
 
     if (currentAudience?.gender === "female") {
-      navigate("/profile_b");
+      navigate("/we_r_0");
       return;
     }
 
     if (currentAudience?.gender === "male") {
-      navigate("/profile_a");
+      navigate("/jin.d0uble0");
       return;
     }
 
-    navigate("/profile_a");
+    navigate("/jin.d0uble0");
+  };
+
+  const logBridgeResetError = (message, error) => {
+    console.warn(`[BI] ${message}`, {
+      code: error?.code,
+      message: error?.message,
+      status: error?.status,
+      retryable: error?.retryable,
+      requestId: error?.requestId,
+    });
   };
 
   const returnToStart = async () => {
     try {
       await logoutCurrentSession();
-    } catch {
-      return;
+    } catch (error) {
+      logBridgeResetError("Return-to-start logout failed", error);
+      sessionStore.clear();
+
+      try {
+        await bridgeClient.resetActiveSessions();
+      } catch (resetError) {
+        logBridgeResetError(
+          "Return-to-start active session reset failed",
+          resetError,
+        );
+      }
     }
 
     clearCurrentAudience();
@@ -78,7 +101,11 @@ function Sidebar() {
             onClick={() => navigate("/my-profile")}
           >
             <div className="nav--section--btn--icon">
-              <img src={iconProfile} alt="Profile" />
+              <img
+                src={currentAudience?.profileImage ?? iconProfile}
+                alt="Profile"
+                style={{ height: "100%", objectFit: "cover", width: "100%" }}
+              />
             </div>
             <div className="nav--section--btn--text">프로필</div>
           </button>
