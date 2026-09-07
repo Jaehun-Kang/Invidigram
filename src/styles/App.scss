@@ -717,6 +717,7 @@ main {
             width: auto;
             height: 100%;
             max-width: none;
+            z-index: 0;
 
             &.fit-width {
               width: 100%;
@@ -730,6 +731,7 @@ main {
             inset: 0;
             background-color: var(--post-overlay);
             opacity: 0;
+            z-index: 10;
           }
 
           &--data {
@@ -746,6 +748,7 @@ main {
             line-height: 150%;
             opacity: 0;
             transform: translate(-50%, -50%);
+            z-index: 11;
 
             > img {
               width: 19px;
@@ -804,6 +807,11 @@ main {
         &--img {
           width: 100%;
           height: 100%;
+
+          &--transition {
+            width: 100%;
+            height: 100%;
+          }
 
           > img {
             width: 100%;

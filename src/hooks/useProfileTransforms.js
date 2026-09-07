@@ -5,6 +5,7 @@ import { sessionStore } from "../services/sessionStore.js";
 const transformReadyStates = new Set(["FINALIZED", "ACTIVE_PROFILE"]);
 const transformBlobUrlCache = new Map();
 const transformStateCache = new Map();
+const terminalAuthErrorCodes = new Set(["AUTH_INVALID", "SESSION_EXPIRED"]);
 
 const getTransformCacheKey = (credentials, job) =>
   `${credentials.sessionId}:${job.assetId}:${job.pipelineVersion}`;
@@ -22,6 +23,17 @@ const buildUrlState = (credentials, jobs) => {
 
   return urls;
 };
+
+const hasPendingTransformWork = (jobs) =>
+  jobs.some((job) => ["PENDING", "RUNNING"].includes(job.status));
+
+const hasReadyResultWithoutBlob = (credentials, jobs) =>
+  jobs.some(
+    (job) =>
+      job.status === "READY" &&
+      job.resultUrl &&
+      !transformBlobUrlCache.has(getTransformCacheKey(credentials, job)),
+  );
 
 const emptyTransformState = { canApply: false, jobs: [], urls: {} };
 
@@ -57,10 +69,13 @@ const logTransformError = (message, error) => {
   });
 };
 
-export const useProfileTransforms = (profileGender) => {
+const isTerminalAuthError = (error) => terminalAuthErrorCodes.has(error?.code);
+
+export const useProfileTransforms = (profileGender, priorityAssetIds = []) => {
   const [state, setState] = useState(() =>
     getInitialTransformState(profileGender),
   );
+  const priorityKey = priorityAssetIds.join("|");
 
   useEffect(() => {
     const credentials = sessionStore.load();
@@ -114,11 +129,12 @@ export const useProfileTransforms = (profileGender) => {
             pipelineVersion: job.pipelineVersion,
           });
         }
+        const urls = buildUrlState(credentials, jobs);
         if (!cancelled) {
           const nextState = {
             canApply: true,
             jobs,
-            urls: buildUrlState(credentials, jobs),
+            urls,
           };
           transformStateCache.set(
             getTransformStateCacheKey(credentials, profileGender),
@@ -126,18 +142,34 @@ export const useProfileTransforms = (profileGender) => {
           );
           setState(nextState);
         }
-        if (!jobs.length) {
+        const scheduledFromEmptyList = !jobs.length;
+        if (scheduledFromEmptyList) {
           logTransformInfo("Profile transform schedule requested", {
             reason: "NO_JOBS",
             routeProfileGender: profileGender,
+            priorityAssetIds,
           });
-          await bridgeClient.scheduleTransforms(credentials);
+          await bridgeClient.scheduleTransforms(credentials, priorityAssetIds);
         }
-        if (jobs.some((job) => ["PENDING", "RUNNING"].includes(job.status))) {
+        if (
+          scheduledFromEmptyList ||
+          hasPendingTransformWork(jobs) ||
+          hasReadyResultWithoutBlob(credentials, jobs)
+        ) {
           pollTimer = setTimeout(poll, 300);
         }
       } catch (error) {
         logTransformError("Profile transform polling failed", error);
+        if (isTerminalAuthError(error)) {
+          sessionStore.clear();
+          transformStateCache.delete(
+            getTransformStateCacheKey(credentials, profileGender),
+          );
+          if (!cancelled) {
+            setState({ canApply: false, jobs: [], urls: {} });
+          }
+          return;
+        }
         pollTimer = setTimeout(poll, 1000);
       }
     };
@@ -172,9 +204,13 @@ export const useProfileTransforms = (profileGender) => {
         return;
       }
 
-      const jobs = await bridgeClient.scheduleTransforms(credentials);
+      const jobs = await bridgeClient.scheduleTransforms(
+        credentials,
+        priorityAssetIds,
+      );
       logTransformInfo("Profile transform scheduled", {
         routeProfileGender: profileGender,
+        priorityAssetIds,
         jobCount: jobs.length,
         jobs: jobs.map((job) => ({
           assetId: job.assetId,
@@ -187,6 +223,14 @@ export const useProfileTransforms = (profileGender) => {
 
     schedule().catch((error) => {
       logTransformError("Profile transform scheduling failed", error);
+      if (isTerminalAuthError(error)) {
+        sessionStore.clear();
+        transformStateCache.delete(
+          getTransformStateCacheKey(credentials, profileGender),
+        );
+        setState({ canApply: false, jobs: [], urls: {} });
+        return;
+      }
       pollTimer = setTimeout(poll, 1000);
     });
 
@@ -194,7 +238,7 @@ export const useProfileTransforms = (profileGender) => {
       cancelled = true;
       clearTimeout(pollTimer);
     };
-  }, [profileGender]);
+  }, [profileGender, priorityKey]);
 
   return state;
 };
