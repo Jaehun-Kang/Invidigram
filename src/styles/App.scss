@@ -712,7 +712,8 @@ main {
           overflow: hidden;
           background-color: var(--secondary);
 
-          > img {
+          > img,
+          > .profile--posts--frames--frame--img {
             width: auto;
             height: 100%;
             max-width: none;

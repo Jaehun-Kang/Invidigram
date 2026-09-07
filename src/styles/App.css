@@ -606,9 +606,13 @@ main .profile--posts--frames--frame {
   background-color: var(--secondary);
 }
 main .profile--posts--frames--frame > img {
+  width: auto;
+  height: 100%;
+  max-width: none;
+}
+main .profile--posts--frames--frame > img.fit-width {
   width: 100%;
   height: auto;
-  max-width: none;
 }
 main .profile--posts--frames--frame::before {
   content: "";

@@ -685,6 +685,63 @@ let nextProfileTransitionJobId = 1;
 const completedProfileTransitionCache = new Set();
 
 const getProfileTransitionKey = (baseSrc, src) => `${baseSrc}::${src || ""}`;
+let profileTransitionQueue = Promise.resolve();
+
+const isElementFullyInViewport = (element) => {
+  const rect = element.getBoundingClientRect();
+  const viewportWidth =
+    window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight =
+    window.innerHeight || document.documentElement.clientHeight || 0;
+
+  return (
+    rect.top >= 0 &&
+    rect.left >= 0 &&
+    rect.bottom <= viewportHeight &&
+    rect.right <= viewportWidth
+  );
+};
+
+const waitForFullViewportEntry = (element) =>
+  new Promise((resolve) => {
+    if (!element || isElementFullyInViewport(element)) {
+      resolve();
+      return;
+    }
+
+    let observer = null;
+    let frameId = 0;
+    let resolved = false;
+    const cleanup = () => {
+      resolved = true;
+      observer?.disconnect();
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+    const tryResolve = () => {
+      if (resolved) return;
+      if (isElementFullyInViewport(element)) {
+        cleanup();
+        resolve();
+        return;
+      }
+      frameId = requestAnimationFrame(tryResolve);
+    };
+
+    observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.intersectionRatio >= 0.999) tryResolve();
+      },
+      { threshold: [0, 0.5, 0.999, 1] },
+    );
+    observer.observe(element);
+    frameId = requestAnimationFrame(tryResolve);
+  });
+
+const enqueueProfileTransition = (task) => {
+  const queuedTask = profileTransitionQueue.then(task, task);
+  profileTransitionQueue = queuedTask.catch(() => {});
+  return queuedTask;
+};
 
 const runProfilePixelTransition = async ({
   baseSrc,
@@ -885,6 +942,8 @@ function ProfileTransformAvatar({
   className,
   faceBox,
   faceLandmarks,
+  imageStyle,
+  onLoad,
   src,
   style,
 }) {
@@ -937,29 +996,36 @@ function ProfileTransformAvatar({
     transitionKeyRef.current = transitionKey;
 
     const render = async () => {
+      const visibilityTarget =
+        container.closest(".profile--posts--frames--frame") ?? container;
       const transformedImage = transformedImageRef.current;
       if (transformedImage?.decode) {
         await transformedImage.decode();
       }
+      await waitForFullViewportEntry(visibilityTarget);
       if (cancelled) return null;
-      setCommittedSrc(src);
-      return runProfilePixelTransition({
-        baseSrc,
-        container,
-        faceBox,
-        faceLandmarks,
-        imageElement,
-        onFirstFrame: () => {
-          if (!cancelled) setShowTransformedImage(true);
-        },
-        src,
+      return enqueueProfileTransition(async () => {
+        await waitForFullViewportEntry(visibilityTarget);
+        if (cancelled) return null;
+        setCommittedSrc(src);
+        return runProfilePixelTransition({
+          baseSrc,
+          container,
+          faceBox,
+          faceLandmarks,
+          imageElement,
+          onFirstFrame: () => {
+            if (!cancelled) setShowTransformedImage(true);
+          },
+          src,
+        });
       });
     };
 
     render()
       .then(async (result) => {
         cleanupOverlay = result?.cleanup || null;
-        if (cancelled) return;
+        if (cancelled || !result) return;
         completedProfileTransitionCache.add(transitionKey);
         setShowTransformedImage(true);
         await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -969,6 +1035,7 @@ function ProfileTransformAvatar({
       .catch((error) => {
         if (cancelled) return;
         console.warn("[BI] Profile canvas transition failed", error);
+        setCommittedSrc(src);
         setShowTransformedImage(true);
       });
 
@@ -1005,6 +1072,7 @@ function ProfileTransformAvatar({
           height: "100%",
           inset: 0,
           objectFit: "cover",
+          ...imageStyle,
           opacity: committedSrc && showTransformedImage ? 1 : 0,
           position: "absolute",
           width: "100%",
@@ -1015,10 +1083,12 @@ function ProfileTransformAvatar({
         ref={imageRef}
         src={baseSrc}
         alt={alt}
+        onLoad={onLoad}
         style={{
           height: "100%",
           inset: 0,
           objectFit: "cover",
+          ...imageStyle,
           opacity: committedSrc && showTransformedImage ? 0 : 1,
           position: "absolute",
           width: "100%",
@@ -1026,6 +1096,43 @@ function ProfileTransformAvatar({
         }}
       />
     </div>
+  );
+}
+
+function ProfileTransformFrame({
+  alt,
+  aspectRatio,
+  baseSrc,
+  className,
+  faceBox,
+  faceLandmarks,
+  onLoad,
+  src,
+}) {
+  const fitWidth = className?.includes("fit-width");
+  const frameStyle = {
+    aspectRatio: aspectRatio || undefined,
+    height: fitWidth ? "auto" : "100%",
+    maxWidth: "none",
+    width: fitWidth ? "100%" : "auto",
+  };
+
+  return (
+    <ProfileTransformAvatar
+      alt={alt}
+      baseSrc={baseSrc}
+      className={className}
+      faceBox={faceBox}
+      faceLandmarks={faceLandmarks}
+      imageStyle={{
+        height: "100%",
+        objectFit: "cover",
+        width: "100%",
+      }}
+      onLoad={onLoad}
+      src={src}
+      style={frameStyle}
+    />
   );
 }
 
@@ -1049,10 +1156,7 @@ function Profile({
   const targetFaceAnalysis = useTargetFaceAnalysis(profileGender);
   const profileUser = {
     ...profileData.user,
-    profileImage:
-      transforms.urls[profileAsset?.assetId] ??
-      profileAsset?.originalPath ??
-      baseProfileImage,
+    profileImage: transforms.urls[profileAsset?.assetId] ?? baseProfileImage,
   };
   const recommendedUser = recommendedProfileData
     ? {
@@ -1084,14 +1188,18 @@ function Profile({
                   job.slot === index)),
           )
         : null;
+      const basePostImage = resolveAssetUrl(post.image);
+      const transformedPostImage = transforms.urls[frameAsset?.assetId] ?? null;
       return {
         ...post,
         postIndex: index,
-        image:
-          transforms.urls[frameAsset?.assetId] ??
-          frameAsset?.originalPath ??
-          resolveAssetUrl(post.image),
+        baseImage: basePostImage,
+        faceBox: frameAsset?.faceBox ?? null,
+        faceLandmarks: frameAsset?.faceLandmarks ?? null,
+        image: transformedPostImage ?? basePostImage,
+        imageAspectRatio: frameAsset?.aspectRatio ?? post.aspectRatio ?? null,
         profileImage: profileUser.profileImage,
+        transformedImage: transformedPostImage,
         username: profileUser.username,
         caption: post.caption ?? "",
         commentTimestamp: getRelativePostTimestamp(post.timestamp),
@@ -1334,6 +1442,24 @@ function Profile({
                       postIndex={post.postIndex}
                       likeCount={getPostLikeCount(post)}
                       onOpen={openPostOverlay}
+                      renderImage={
+                        post.transformedImage &&
+                        post.faceBox &&
+                        Array.isArray(post.faceLandmarks)
+                          ? ({ className, onLoad }) => (
+                              <ProfileTransformFrame
+                                alt=""
+                                aspectRatio={post.imageAspectRatio}
+                                baseSrc={post.baseImage}
+                                className={className}
+                                faceBox={post.faceBox}
+                                faceLandmarks={post.faceLandmarks}
+                                onLoad={onLoad}
+                                src={post.transformedImage}
+                              />
+                            )
+                          : null
+                      }
                     />
                   ) : (
                     <div
@@ -1353,6 +1479,24 @@ function Profile({
                     postIndex={post.postIndex}
                     likeCount={getPostLikeCount(post)}
                     onOpen={openPostOverlay}
+                    renderImage={
+                      post.transformedImage &&
+                      post.faceBox &&
+                      Array.isArray(post.faceLandmarks)
+                        ? ({ className, onLoad }) => (
+                            <ProfileTransformFrame
+                              alt=""
+                              aspectRatio={post.imageAspectRatio}
+                              baseSrc={post.baseImage}
+                              className={className}
+                              faceBox={post.faceBox}
+                              faceLandmarks={post.faceLandmarks}
+                              onLoad={onLoad}
+                              src={post.transformedImage}
+                            />
+                          )
+                        : null
+                    }
                   />
                 ))}
               </div>
