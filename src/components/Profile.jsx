@@ -125,11 +125,11 @@ const faceHoleIndices = [
 ];
 
 const getProfileAssetId = (profileGender) =>
-  profileGender === "female" ? "lora-female" : "lora-male";
+  profileGender === "female" ? "female-profile" : "male-profile";
 
 const profileAnalysisUrls = {
-  female: "/targets/female/lora-female/analysis/face-landmarks.json",
-  male: "/targets/male/lora-male/analysis/face-landmarks.json",
+  female: "/targets/female/female-profile/analysis/face-landmarks.json",
+  male: "/targets/male/male-profile/analysis/face-landmarks.json",
 };
 
 const useTargetFaceAnalysis = (profileGender) => {
@@ -1040,9 +1040,19 @@ function Profile({
   const transforms = useProfileTransforms(profileGender);
   const canUseProfileTransforms = transforms.canApply;
   const baseProfileImage = resolveAssetUrl(profileData.user.profileImage);
+  const profileAssetId = getProfileAssetId(profileGender);
+  const profileAsset = canUseProfileTransforms
+    ? transforms.jobs.find(
+        (job) => job.assetId === profileAssetId || job.role === "profile-avatar",
+      )
+    : null;
+  const targetFaceAnalysis = useTargetFaceAnalysis(profileGender);
   const profileUser = {
     ...profileData.user,
-    profileImage: baseProfileImage,
+    profileImage:
+      transforms.urls[profileAsset?.assetId] ??
+      profileAsset?.originalPath ??
+      baseProfileImage,
   };
   const recommendedUser = recommendedProfileData
     ? {
@@ -1195,10 +1205,17 @@ function Profile({
         <div className="profile">
           <div className="profile--header">
             <div className="profile--header--details">
-              <img
+              <ProfileTransformAvatar
                 className="profile--header--details--img"
-                src={profileUser.profileImage}
                 alt="프로필 이미지"
+                baseSrc={baseProfileImage}
+                faceBox={targetFaceAnalysis?.box ?? profileAsset?.faceBox ?? null}
+                faceLandmarks={
+                  targetFaceAnalysis?.landmarks ??
+                  profileAsset?.faceLandmarks ??
+                  null
+                }
+                src={profileUser.profileImage}
                 style={profileAvatarStyle}
               />
               <div className="profile--header--details--info">
