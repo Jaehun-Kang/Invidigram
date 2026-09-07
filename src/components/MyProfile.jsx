@@ -42,21 +42,6 @@ function MyProfile() {
             </div>
           </div>
         </div>
-        <div className="profile--posts">
-          <div className="profile--posts--selector">
-            <button className="profile--posts--selector--tab selected">
-              게시물
-            </button>
-          </div>
-          <div className="profile--posts--frames" id="posts">
-            {Array.from({ length: 12 }, (_, index) => (
-              <div
-                className="profile--posts--frames--frame"
-                key={`my-empty-${index}`}
-              />
-            ))}
-          </div>
-        </div>
       </div>
     </main>
   );
