@@ -1166,6 +1166,7 @@ function Profile({
     : profileUser;
   const currentAudience = getCurrentAudience();
   const profileUsername = profileData.user.username;
+  const isOwnProfile = currentAudience?.gender === profileGender;
   const recommendedProfileUsername = recommendedProfileData?.user?.username;
   const recommendedProfileGender = getProfileGenderByUsername(
     recommendedProfileUsername,
@@ -1241,7 +1242,9 @@ function Profile({
     `calc(100vh - ${postOverlayVerticalGap}px)`,
   );
   const selectedPost =
-    selectedPostIndex === null ? null : profilePosts[selectedPostIndex];
+    isOwnProfile || selectedPostIndex === null
+      ? null
+      : profilePosts[selectedPostIndex];
   const selectedPostDataIndex =
     selectedPostIndex === null ? null : selectedPostIndex;
   const isSelectedPostLiked =
@@ -1415,27 +1418,65 @@ function Profile({
               </div>
             </div>
           </div>
-          <div className="profile--posts">
-            <div className="profile--posts--selector">
-              <button
-                className={`profile--posts--selector--tab${selectedPostsTab === "posts" ? " selected" : ""}`}
-                onClick={() => setSelectedPostsTab("posts")}
-              >
-                <img src={iconPostsO} />
-                <img src={iconPostsS} />
-              </button>
-              <button
-                className={`profile--posts--selector--tab${selectedPostsTab === "tagged_posts" ? " selected" : ""}`}
-                onClick={() => setSelectedPostsTab("tagged_posts")}
-              >
-                <img src={iconPostsTaggedO} />
-                <img src={iconPostsTaggedS} />
-              </button>
-            </div>
-            {selectedPostsTab === "posts" && (
-              <div className="profile--posts--frames" id="posts">
-                {profilePostFrames.map((post, index) =>
-                  post ? (
+          {!isOwnProfile && (
+            <div className="profile--posts">
+              <div className="profile--posts--selector">
+                <button
+                  className={`profile--posts--selector--tab${selectedPostsTab === "posts" ? " selected" : ""}`}
+                  onClick={() => setSelectedPostsTab("posts")}
+                >
+                  <img src={iconPostsO} />
+                  <img src={iconPostsS} />
+                </button>
+                <button
+                  className={`profile--posts--selector--tab${selectedPostsTab === "tagged_posts" ? " selected" : ""}`}
+                  onClick={() => setSelectedPostsTab("tagged_posts")}
+                >
+                  <img src={iconPostsTaggedO} />
+                  <img src={iconPostsTaggedS} />
+                </button>
+              </div>
+              {selectedPostsTab === "posts" && (
+                <div className="profile--posts--frames" id="posts">
+                  {profilePostFrames.map((post, index) =>
+                    post ? (
+                      <PostFrame
+                        key={post.id}
+                        post={post}
+                        postIndex={post.postIndex}
+                        likeCount={getPostLikeCount(post)}
+                        onOpen={openPostOverlay}
+                        renderImage={
+                          post.transformedImage &&
+                          post.faceBox &&
+                          Array.isArray(post.faceLandmarks)
+                            ? ({ className, onLoad }) => (
+                                <ProfileTransformFrame
+                                  alt=""
+                                  aspectRatio={post.imageAspectRatio}
+                                  baseSrc={post.baseImage}
+                                  className={className}
+                                  faceBox={post.faceBox}
+                                  faceLandmarks={post.faceLandmarks}
+                                  onLoad={onLoad}
+                                  src={post.transformedImage}
+                                />
+                              )
+                            : null
+                        }
+                      />
+                    ) : (
+                      <div
+                        className="profile--posts--frames--frame"
+                        key={`empty-${index}`}
+                      />
+                    ),
+                  )}
+                </div>
+              )}
+              {selectedPostsTab === "tagged_posts" && (
+                <div className="profile--posts--frames" id="tagged_posts">
+                  {taggedPosts.map((post) => (
                     <PostFrame
                       key={post.id}
                       post={post}
@@ -1461,47 +1502,11 @@ function Profile({
                           : null
                       }
                     />
-                  ) : (
-                    <div
-                      className="profile--posts--frames--frame"
-                      key={`empty-${index}`}
-                    />
-                  ),
-                )}
-              </div>
-            )}
-            {selectedPostsTab === "tagged_posts" && (
-              <div className="profile--posts--frames" id="tagged_posts">
-                {taggedPosts.map((post) => (
-                  <PostFrame
-                    key={post.id}
-                    post={post}
-                    postIndex={post.postIndex}
-                    likeCount={getPostLikeCount(post)}
-                    onOpen={openPostOverlay}
-                    renderImage={
-                      post.transformedImage &&
-                      post.faceBox &&
-                      Array.isArray(post.faceLandmarks)
-                        ? ({ className, onLoad }) => (
-                            <ProfileTransformFrame
-                              alt=""
-                              aspectRatio={post.imageAspectRatio}
-                              baseSrc={post.baseImage}
-                              className={className}
-                              faceBox={post.faceBox}
-                              faceLandmarks={post.faceLandmarks}
-                              onLoad={onLoad}
-                              src={post.transformedImage}
-                            />
-                          )
-                        : null
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {selectedPost && (
           <div
