@@ -8,6 +8,7 @@ import usernameWords from "../data/usernameWords.json";
 import { saveCurrentAudience } from "../utils/audienceStore.js";
 import convertKoreanToQwerty from "../utils/convertKoreanToQwerty.js";
 import { bridgeClient } from "../services/bridgeClient.js";
+import { socialStore } from "../services/socialStore.js";
 import { useProfileSession } from "../hooks/useProfileSession.js";
 
 const genderOptions = [
@@ -92,11 +93,13 @@ function ProfileSetting() {
     const finalized = await finalize({ username, gender: selectedGender });
 
     if (!finalized) return false;
-    saveCurrentAudience({
+    const audience = {
       username,
       gender: selectedGender,
       profileImage: finalized.profileImage ?? iconProfile,
-    });
+    };
+    saveCurrentAudience(audience);
+    socialStore.addLoginFollower(audience);
     navigate(finalized.profileRoute, { replace: true });
     return true;
   };

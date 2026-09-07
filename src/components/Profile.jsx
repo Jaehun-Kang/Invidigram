@@ -9,6 +9,8 @@ import iconHeartS from "../assets/icons/heart_solid.svg";
 import PostFrame from "./PostFrame";
 import { useProfileTransforms } from "../hooks/useProfileTransforms.js";
 import { useNavigate } from "react-router-dom";
+import { getCurrentAudience } from "../utils/audienceStore.js";
+import { socialStore } from "../services/socialStore.js";
 
 const profileAssetUrls = import.meta.glob("../assets/**/*", {
   eager: true,
@@ -27,6 +29,12 @@ const getInitialStats = (profileData) => ({
   followers: profileData.stats?.followers ?? 0,
   following: profileData.stats?.following ?? 0,
 });
+
+const getProfileGenderByUsername = (username) => {
+  if (username === "jin.d0uble0") return "male";
+  if (username === "we_r_0") return "female";
+  return null;
+};
 
 const getPostDate = (timestamp) => {
   const timestampText = String(timestamp);
@@ -674,6 +682,9 @@ const getProfileTransitionWorker = () => {
 };
 
 let nextProfileTransitionJobId = 1;
+const completedProfileTransitionCache = new Set();
+
+const getProfileTransitionKey = (baseSrc, src) => `${baseSrc}::${src || ""}`;
 
 const runProfilePixelTransition = async ({
   baseSrc,
@@ -881,8 +892,15 @@ function ProfileTransformAvatar({
   const imageRef = useRef(null);
   const transitionKeyRef = useRef(null);
   const transformedImageRef = useRef(null);
-  const [committedSrc, setCommittedSrc] = useState(null);
-  const [showTransformedImage, setShowTransformedImage] = useState(false);
+  const initialTransitionKey = getProfileTransitionKey(baseSrc, src);
+  const initialHasCompletedTransition =
+    src && src !== baseSrc && completedProfileTransitionCache.has(initialTransitionKey);
+  const [committedSrc, setCommittedSrc] = useState(
+    initialHasCompletedTransition ? src : null,
+  );
+  const [showTransformedImage, setShowTransformedImage] = useState(
+    Boolean(initialHasCompletedTransition),
+  );
 
   useEffect(() => {
     transitionKeyRef.current = null;
@@ -893,7 +911,7 @@ function ProfileTransformAvatar({
   useEffect(() => {
     const container = containerRef.current;
     const imageElement = imageRef.current;
-    const transitionKey = `${baseSrc}::${src || ""}`;
+    const transitionKey = getProfileTransitionKey(baseSrc, src);
 
     if (
       !container ||
@@ -904,6 +922,13 @@ function ProfileTransformAvatar({
       !Array.isArray(faceLandmarks) ||
       transitionKeyRef.current === transitionKey
     ) {
+      return undefined;
+    }
+
+    if (completedProfileTransitionCache.has(transitionKey)) {
+      transitionKeyRef.current = transitionKey;
+      setCommittedSrc(src);
+      setShowTransformedImage(true);
       return undefined;
     }
 
@@ -935,6 +960,7 @@ function ProfileTransformAvatar({
       .then(async (result) => {
         cleanupOverlay = result?.cleanup || null;
         if (cancelled) return;
+        completedProfileTransitionCache.add(transitionKey);
         setShowTransformedImage(true);
         await new Promise((resolve) => requestAnimationFrame(resolve));
         await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -1012,19 +1038,11 @@ function Profile({
 }) {
   const navigate = useNavigate();
   const transforms = useProfileTransforms(profileGender);
-  const targetFaceAnalysis = useTargetFaceAnalysis(profileGender);
   const canUseProfileTransforms = transforms.canApply;
-  const profileAsset = transforms.jobs.find(
-    (job) =>
-      job.role === "profile-avatar" ||
-      job.assetId === getProfileAssetId(profileGender),
-  );
   const baseProfileImage = resolveAssetUrl(profileData.user.profileImage);
   const profileUser = {
     ...profileData.user,
-    profileImage:
-      (canUseProfileTransforms && transforms.urls[profileAsset?.assetId]) ||
-      baseProfileImage,
+    profileImage: baseProfileImage,
   };
   const recommendedUser = recommendedProfileData
     ? {
@@ -1032,6 +1050,17 @@ function Profile({
         profileImage: resolveAssetUrl(recommendedProfileData.user.profileImage),
       }
     : profileUser;
+  const currentAudience = getCurrentAudience();
+  const profileUsername = profileData.user.username;
+  const recommendedProfileUsername = recommendedProfileData?.user?.username;
+  const recommendedProfileGender = getProfileGenderByUsername(
+    recommendedProfileUsername,
+  );
+  const canFollowRecommendedProfile =
+    recommendedProfileUsername &&
+    currentAudience?.gender &&
+    currentAudience?.gender !== recommendedProfileGender;
+  const [socialState, setSocialState] = useState(() => socialStore.read());
   const profilePosts = [...profileData.posts]
     .sort((firstPost, secondPost) => secondPost.timestamp - firstPost.timestamp)
     .map((post, index) => {
@@ -1067,11 +1096,27 @@ function Profile({
   const taggedPosts = profilePosts.filter((post) =>
     post.taggedUsernames.includes(taggedUsername),
   );
-  const [isRecommendedFollowing, setIsRecommendedFollowing] = useState(false);
-  const stats = getInitialStats(profileData);
+  const isRecommendedFollowing = socialStore.isFollowingProfile(
+    socialState,
+    currentAudience,
+    recommendedProfileUsername,
+  );
+  const isRecommendedButtonSelected =
+    !canFollowRecommendedProfile || isRecommendedFollowing;
+  const initialStats = getInitialStats(profileData);
+  const stats = {
+    ...initialStats,
+    followers:
+      initialStats.followers +
+      socialStore.getFollowerDelta(socialState, profileUsername),
+    following:
+      initialStats.following +
+      (currentAudience?.gender === profileGender
+        ? socialStore.getFollowingDelta(socialState, currentAudience)
+        : 0),
+  };
   const [selectedPostsTab, setSelectedPostsTab] = useState("posts");
   const [selectedPostIndex, setSelectedPostIndex] = useState(null);
-  const [likedPostIndexes, setLikedPostIndexes] = useState(() => new Set());
   const [poppingLikeIndex, setPoppingLikeIndex] = useState(null);
   const [postOverlayImageRatio, setPostOverlayImageRatio] = useState(1);
   const [postOverlayImageWidth, setPostOverlayImageWidth] = useState(
@@ -1082,9 +1127,16 @@ function Profile({
   const selectedPostDataIndex =
     selectedPostIndex === null ? null : selectedPostIndex;
   const isSelectedPostLiked =
-    selectedPost !== null && likedPostIndexes.has(selectedPost.id);
+    selectedPost !== null &&
+    socialStore.hasLikedPost(
+      socialState,
+      currentAudience,
+      profileUsername,
+      selectedPost.id,
+    );
   const getPostLikeCount = (post) =>
-    post.likes + (likedPostIndexes.has(post.id) ? 1 : 0);
+    post.likes +
+    socialStore.getPostLikeDelta(socialState, profileUsername, post.id);
 
   useEffect(() => {
     const updatePostOverlayImageWidth = () => {
@@ -1108,18 +1160,33 @@ function Profile({
       return;
     }
 
-    setLikedPostIndexes((currentLikedPostIndexes) => {
-      const nextLikedPostIndexes = new Set(currentLikedPostIndexes);
+    setSocialState((currentSocialState) => {
+      const wasLiked = socialStore.hasLikedPost(
+        currentSocialState,
+        currentAudience,
+        profileUsername,
+        selectedPost.id,
+      );
+      const nextSocialState = socialStore.togglePostLike(
+        currentAudience,
+        profileUsername,
+        selectedPost.id,
+      );
 
-      if (nextLikedPostIndexes.has(selectedPost.id)) {
-        nextLikedPostIndexes.delete(selectedPost.id);
-      } else {
-        nextLikedPostIndexes.add(selectedPost.id);
+      if (!wasLiked) {
         setPoppingLikeIndex(selectedPostDataIndex);
       }
 
-      return nextLikedPostIndexes;
+      return nextSocialState;
     });
+  };
+
+  const toggleRecommendedFollow = () => {
+    if (!canFollowRecommendedProfile) return;
+
+    setSocialState(
+      socialStore.toggleFollow(currentAudience, recommendedProfileUsername),
+    );
   };
 
   return (
@@ -1128,18 +1195,9 @@ function Profile({
         <div className="profile">
           <div className="profile--header">
             <div className="profile--header--details">
-              <ProfileTransformAvatar
+              <img
                 className="profile--header--details--img"
                 src={profileUser.profileImage}
-                baseSrc={baseProfileImage}
-                faceBox={
-                  profileAsset?.faceBox ??
-                  targetFaceAnalysis?.box ??
-                  profileFaceBoxes[profileGender]
-                }
-                faceLandmarks={
-                  profileAsset?.faceLandmarks ?? targetFaceAnalysis?.landmarks
-                }
                 alt="프로필 이미지"
                 style={profileAvatarStyle}
               />
@@ -1221,13 +1279,12 @@ function Profile({
                     </div>
                   </button>
                   <button
-                    className={`profile--header--recommend--profiles--profile--btn${isRecommendedFollowing ? " selected" : ""}`}
-                    aria-pressed={isRecommendedFollowing}
-                    onClick={() =>
-                      setIsRecommendedFollowing((isFollowing) => !isFollowing)
-                    }
+                    className={`profile--header--recommend--profiles--profile--btn${isRecommendedButtonSelected ? " selected" : ""}`}
+                    aria-pressed={isRecommendedButtonSelected}
+                    disabled={!canFollowRecommendedProfile}
+                    onClick={toggleRecommendedFollow}
                   >
-                    {isRecommendedFollowing ? "팔로잉" : "팔로우"}
+                    {isRecommendedButtonSelected ? "팔로잉" : "팔로우"}
                   </button>
                 </div>
               </div>

@@ -188,14 +188,14 @@ nav {
   height: 48px;
   padding-inline: 22px;
   border-radius: 999px;
-  background-color: var(--black);
-  color: var(--white);
+  background-color: var(--white);
+  color: var(--black);
   font-size: 15px;
   font-weight: 700;
   box-shadow: 0 6px 16px rgba(12, 16, 20, 0.16);
 
   &:hover {
-    background-color: rgb(38, 43, 49);
+    background-color: var(--secondary);
   }
 }
 
@@ -647,6 +647,13 @@ main {
               &:hover {
                 background-color: var(--primary-hover);
               }
+
+              &:disabled {
+                background-color: var(--primary-light);
+                color: var(--white);
+                cursor: default;
+                pointer-events: none;
+              }
             }
           }
         }
@@ -709,6 +716,11 @@ main {
             width: auto;
             height: 100%;
             max-width: none;
+
+            &.fit-width {
+              width: 100%;
+              height: auto;
+            }
           }
 
           &::before {
@@ -762,7 +774,7 @@ main {
   & .post_overlay {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: 300;
     display: grid;
     place-items: center;
     background-color: var(--black-transparent);

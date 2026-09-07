@@ -11,13 +11,16 @@ import { bridgeClient } from "../services/bridgeClient.js";
 import { logoutCurrentSession } from "../services/sessionLifecycle.js";
 import { sessionStore } from "../services/sessionStore.js";
 
-function Sidebar() {
+function Sidebar({ inactivityRemainingSeconds }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const currentAudience = getCurrentAudience();
   const isHomeSelected = pathname === "/jin.d0uble0" || pathname === "/we_r_0";
   const isProfileSelected = pathname === "/my-profile";
   const isProfileSetting = pathname === "/profile-setting";
+  const shouldShowReturnCountdown =
+    Number.isFinite(inactivityRemainingSeconds) &&
+    inactivityRemainingSeconds <= 20;
 
   const navigateToProfile = () => {
     const currentAudience = getCurrentAudience();
@@ -121,7 +124,9 @@ function Sidebar() {
           type="button"
           onClick={returnToStart}
         >
-          처음으로
+          {shouldShowReturnCountdown
+            ? `${inactivityRemainingSeconds}초 후 처음으로`
+            : "처음으로"}
         </button>
       )}
     </>

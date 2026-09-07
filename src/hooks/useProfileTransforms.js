@@ -3,6 +3,38 @@ import { bridgeClient } from "../services/bridgeClient.js";
 import { sessionStore } from "../services/sessionStore.js";
 
 const transformReadyStates = new Set(["FINALIZED", "ACTIVE_PROFILE"]);
+const transformBlobUrlCache = new Map();
+const transformStateCache = new Map();
+
+const getTransformCacheKey = (credentials, job) =>
+  `${credentials.sessionId}:${job.assetId}:${job.pipelineVersion}`;
+
+const getTransformStateCacheKey = (credentials, profileGender) =>
+  `${credentials.sessionId}:${profileGender}`;
+
+const buildUrlState = (credentials, jobs) => {
+  const urls = {};
+
+  for (const job of jobs) {
+    const url = transformBlobUrlCache.get(getTransformCacheKey(credentials, job));
+    if (url) urls[job.assetId] = url;
+  }
+
+  return urls;
+};
+
+const emptyTransformState = { canApply: false, jobs: [], urls: {} };
+
+const getInitialTransformState = (profileGender) => {
+  const credentials = sessionStore.load();
+
+  if (!credentials) return emptyTransformState;
+
+  return (
+    transformStateCache.get(getTransformStateCacheKey(credentials, profileGender)) ??
+    emptyTransformState
+  );
+};
 
 const formatSessionForLog = (session) => ({
   sessionId: session?.sessionId,
@@ -26,11 +58,9 @@ const logTransformError = (message, error) => {
 };
 
 export const useProfileTransforms = (profileGender) => {
-  const [state, setState] = useState({
-    canApply: false,
-    jobs: [],
-    urls: {},
-  });
+  const [state, setState] = useState(() =>
+    getInitialTransformState(profileGender),
+  );
 
   useEffect(() => {
     const credentials = sessionStore.load();
@@ -45,8 +75,6 @@ export const useProfileTransforms = (profileGender) => {
 
     let cancelled = false;
     let pollTimer;
-    const objectUrls = new Set();
-    const loaded = new Map();
 
     const poll = async () => {
       try {
@@ -72,15 +100,14 @@ export const useProfileTransforms = (profileGender) => {
           });
         }
         for (const job of jobs) {
-          const key = `${job.assetId}:${job.pipelineVersion}`;
-          if (job.status !== "READY" || loaded.has(key)) continue;
+          const key = getTransformCacheKey(credentials, job);
+          if (job.status !== "READY" || transformBlobUrlCache.has(key)) continue;
           const blob = await bridgeClient.getTransformResultBlob(
             credentials,
             job.resultUrl,
           );
           const objectUrl = URL.createObjectURL(blob);
-          objectUrls.add(objectUrl);
-          loaded.set(key, objectUrl);
+          transformBlobUrlCache.set(key, objectUrl);
           logTransformInfo("Profile transform result loaded", {
             assetId: job.assetId,
             role: job.role,
@@ -88,12 +115,16 @@ export const useProfileTransforms = (profileGender) => {
           });
         }
         if (!cancelled) {
-          const urls = {};
-          for (const job of jobs) {
-            const url = loaded.get(`${job.assetId}:${job.pipelineVersion}`);
-            if (url) urls[job.assetId] = url;
-          }
-          setState({ canApply: true, jobs, urls });
+          const nextState = {
+            canApply: true,
+            jobs,
+            urls: buildUrlState(credentials, jobs),
+          };
+          transformStateCache.set(
+            getTransformStateCacheKey(credentials, profileGender),
+            nextState,
+          );
+          setState(nextState);
         }
         if (!jobs.length) {
           logTransformInfo("Profile transform schedule requested", {
@@ -162,7 +193,6 @@ export const useProfileTransforms = (profileGender) => {
     return () => {
       cancelled = true;
       clearTimeout(pollTimer);
-      for (const objectUrl of objectUrls) URL.revokeObjectURL(objectUrl);
     };
   }, [profileGender]);
 
