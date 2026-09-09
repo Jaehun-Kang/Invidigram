@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { bridgeClient } from "../services/bridgeClient.js";
 import { sessionStore } from "../services/sessionStore.js";
+import { createTransformResultCache, getTransformCacheKey, loadReadyTransformResults } from "../services/transformResultCache.js";
 
 const transformReadyStates = new Set(["FINALIZED", "ACTIVE_PROFILE"]);
-const transformBlobUrlCache = new Map();
+const resultCache = createTransformResultCache(
+  (credentials, url) => bridgeClient.getTransformResultBlob(credentials, url),
+  (blob) => URL.createObjectURL(blob),
+);
+const transformBlobUrlCache = resultCache.urls;
 const transformStateCache = new Map();
 const terminalAuthErrorCodes = new Set(["AUTH_INVALID", "SESSION_EXPIRED"]);
-
-const getTransformCacheKey = (credentials, job) =>
-  `${credentials.sessionId}:${job.assetId}:${job.pipelineVersion}`;
 
 const getTransformStateCacheKey = (credentials, profileGender) =>
   `${credentials.sessionId}:${profileGender}`;
@@ -76,6 +78,7 @@ export const useProfileTransforms = (profileGender, priorityAssetIds = []) => {
     getInitialTransformState(profileGender),
   );
   const priorityKey = priorityAssetIds.join("|");
+  const hasPriorityAssets = priorityAssetIds.length > 0;
 
   useEffect(() => {
     const credentials = sessionStore.load();
@@ -92,8 +95,10 @@ export const useProfileTransforms = (profileGender, priorityAssetIds = []) => {
     let pollTimer;
 
     const poll = async () => {
+      if (cancelled) return;
       try {
         const jobs = await bridgeClient.getTransforms(credentials);
+        if (cancelled) return;
         const snapshot = jobs
           .map(
             (job) =>
@@ -114,42 +119,46 @@ export const useProfileTransforms = (profileGender, priorityAssetIds = []) => {
             })),
           });
         }
-        for (const job of jobs) {
-          const key = getTransformCacheKey(credentials, job);
-          if (job.status !== "READY" || transformBlobUrlCache.has(key)) continue;
-          const blob = await bridgeClient.getTransformResultBlob(
-            credentials,
-            job.resultUrl,
-          );
-          const objectUrl = URL.createObjectURL(blob);
-          transformBlobUrlCache.set(key, objectUrl);
-          logTransformInfo("Profile transform result loaded", {
-            assetId: job.assetId,
-            role: job.role,
-            pipelineVersion: job.pipelineVersion,
+        const publish = (completedJob) => {
+          if (cancelled) return;
+          if (completedJob) logTransformInfo("Profile transform result loaded", {
+            assetId: completedJob.assetId,
+            role: completedJob.role,
+            modelRevision: completedJob.modelRevision,
+            pipelineVersion: completedJob.pipelineVersion,
           });
-        }
-        const urls = buildUrlState(credentials, jobs);
-        if (!cancelled) {
           const nextState = {
             canApply: true,
             jobs,
-            urls,
+            urls: buildUrlState(credentials, jobs),
           };
           transformStateCache.set(
             getTransformStateCacheKey(credentials, profileGender),
             nextState,
           );
           setState(nextState);
-        }
-        const scheduledFromEmptyList = !jobs.length;
+        };
+        publish();
+        // Bound downloads, but publish each result without waiting for the batch.
+        await loadReadyTransformResults({
+          jobs, credentials, priorityAssetIds, cache: resultCache,
+          cancelled: () => cancelled, publish,
+          onError: (error) => {
+            if (isTerminalAuthError(error)) throw error;
+            logTransformError("Profile transform result download failed", error);
+          },
+        });
+        if (cancelled) return;
+        const scheduledFromEmptyList = !jobs.length && hasPriorityAssets;
         if (scheduledFromEmptyList) {
           logTransformInfo("Profile transform schedule requested", {
             reason: "NO_JOBS",
             routeProfileGender: profileGender,
             priorityAssetIds,
           });
-          await bridgeClient.scheduleTransforms(credentials, priorityAssetIds);
+          await bridgeClient.scheduleTransforms(credentials, priorityAssetIds, {
+            onlyPriority: true,
+          });
         }
         if (
           scheduledFromEmptyList ||
@@ -159,6 +168,7 @@ export const useProfileTransforms = (profileGender, priorityAssetIds = []) => {
           pollTimer = setTimeout(poll, 300);
         }
       } catch (error) {
+        if (cancelled) return;
         logTransformError("Profile transform polling failed", error);
         if (isTerminalAuthError(error)) {
           sessionStore.clear();
@@ -204,9 +214,18 @@ export const useProfileTransforms = (profileGender, priorityAssetIds = []) => {
         return;
       }
 
+      if (!hasPriorityAssets) {
+        logTransformInfo("Profile transform waiting for visible assets", {
+          routeProfileGender: profileGender,
+        });
+        await poll();
+        return;
+      }
+
       const jobs = await bridgeClient.scheduleTransforms(
         credentials,
         priorityAssetIds,
+        { onlyPriority: true },
       );
       logTransformInfo("Profile transform scheduled", {
         routeProfileGender: profileGender,
@@ -222,6 +241,7 @@ export const useProfileTransforms = (profileGender, priorityAssetIds = []) => {
     };
 
     schedule().catch((error) => {
+      if (cancelled) return;
       logTransformError("Profile transform scheduling failed", error);
       if (isTerminalAuthError(error)) {
         sessionStore.clear();

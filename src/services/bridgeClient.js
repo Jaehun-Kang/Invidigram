@@ -120,10 +120,10 @@ export class BridgeClient {
     return this.#sessionRequest(session, "/finalize", { method: "POST" });
   }
 
-  scheduleTransforms(session, priorityAssetIds = []) {
+  scheduleTransforms(session, priorityAssetIds = [], options = {}) {
     return this.#sessionRequest(session, "/transforms/schedule", {
       method: "POST",
-      body: { priorityAssetIds },
+      body: { priorityAssetIds, ...options },
     });
   }
 

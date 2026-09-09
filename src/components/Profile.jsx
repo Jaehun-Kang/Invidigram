@@ -11,6 +11,7 @@ import { useProfileTransforms } from "../hooks/useProfileTransforms.js";
 import { useNavigate } from "react-router-dom";
 import { getCurrentAudience } from "../utils/audienceStore.js";
 import { socialStore } from "../services/socialStore.js";
+import { createTransitionQueue } from "../services/transitionQueue.js";
 
 const profileAssetUrls = import.meta.glob("../assets/**/*", {
   eager: true,
@@ -77,7 +78,7 @@ const getPostOverlayImageWidth = (imageRatio) => {
   const maxImageHeight = window.innerHeight - postOverlayVerticalGap;
   const maxImageWidth =
     window.innerWidth - postOverlayHorizontalGap - postOverlayCommentWidth;
-  const imageWidth = Math.min(imageRatio, 1) * maxImageHeight;
+  const imageWidth = imageRatio * maxImageHeight;
 
   return `${Math.max(0, Math.min(imageWidth, maxImageWidth))}px`;
 };
@@ -654,7 +655,7 @@ const markProfileTransitionComplete = (baseSrc, src) => {
     completedProfileTransitionCache.add(getProfileTransitionKey(baseSrc, src));
   }
 };
-let profileTransitionQueue = Promise.resolve();
+const enqueueProfileTransition = createTransitionQueue(2);
 
 const isElementFullyInViewport = (element) => {
   const rect = element.getBoundingClientRect();
@@ -664,6 +665,7 @@ const isElementFullyInViewport = (element) => {
     window.innerHeight || document.documentElement.clientHeight || 0;
 
   return (
+    element.isConnected && rect.width > 0 && rect.height > 0 &&
     rect.top >= 0 &&
     rect.left >= 0 &&
     rect.bottom <= viewportHeight &&
@@ -688,63 +690,6 @@ const getElementViewportRatio = (element) => {
   );
 
   return (visibleWidth * visibleHeight) / (rect.width * rect.height);
-};
-
-const waitForFullViewportEntry = (element, options = {}) =>
-  new Promise((resolve) => {
-    const {
-      fallbackMs = 4000,
-      minFallbackRatio = 0.35,
-    } = options;
-    if (!element) {
-      resolve("missing-element");
-      return;
-    }
-
-    let observer = null;
-    let frameId = 0;
-    let timeoutId = 0;
-    let resolved = false;
-    const cleanup = (reason) => {
-      resolved = true;
-      observer?.disconnect();
-      if (frameId) cancelAnimationFrame(frameId);
-      if (timeoutId) clearTimeout(timeoutId);
-      resolve(reason);
-    };
-    const tryResolve = () => {
-      if (resolved) return;
-      if (isElementFullyInViewport(element)) {
-        cleanup("full");
-        return;
-      }
-      frameId = requestAnimationFrame(tryResolve);
-    };
-
-    observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.intersectionRatio >= 0.999) tryResolve();
-      },
-      { threshold: [0, 0.5, 0.999, 1] },
-    );
-    observer.observe(element);
-    frameId = requestAnimationFrame(tryResolve);
-    timeoutId = window.setTimeout(() => {
-      if (resolved) return;
-      const visibleRatio = getElementViewportRatio(element);
-      if (visibleRatio >= minFallbackRatio) {
-        console.info("[BI] Profile pixel transition viewport fallback", {
-          visibleRatio,
-        });
-        cleanup("fallback");
-      }
-    }, fallbackMs);
-  });
-
-const enqueueProfileTransition = (task) => {
-  const queuedTask = profileTransitionQueue.then(task, task);
-  profileTransitionQueue = queuedTask.catch(() => {});
-  return queuedTask;
 };
 
 const runProfilePixelTransition = async ({
@@ -993,30 +938,7 @@ function ProfileTransformAvatar({
 
     const visibilityTarget =
       container.closest(".profile--posts--frames--frame") ?? container;
-    let notified = false;
-    const notify = () => {
-      if (notified) return;
-      notified = true;
-      onVisibleAsset(assetId);
-    };
-
-    if (getElementViewportRatio(visibilityTarget) > 0) {
-      notify();
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          notify();
-          observer.disconnect();
-        }
-      },
-      { threshold: [0, 0.01] },
-    );
-    observer.observe(visibilityTarget);
-
-    return () => observer.disconnect();
+    return onVisibleAsset(assetId, visibilityTarget);
   }, [assetId, onVisibleAsset]);
 
   useEffect(() => {
@@ -1049,6 +971,7 @@ function ProfileTransformAvatar({
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     let cleanupOverlay = null;
     transitionKeyRef.current = transitionKey;
 
@@ -1059,18 +982,10 @@ function ProfileTransformAvatar({
       if (transformedImage?.decode) {
         await transformedImage.decode();
       }
-      const entryReason = await waitForFullViewportEntry(visibilityTarget);
       if (cancelled) return null;
       return enqueueProfileTransition(async () => {
-        const queuedEntryReason = await waitForFullViewportEntry(
-          visibilityTarget,
-          { fallbackMs: entryReason === "full" ? 4000 : 0 },
-        );
         if (cancelled) return null;
-        console.info("[BI] Profile pixel transition viewport ready", {
-          entryReason,
-          queuedEntryReason,
-        });
+        console.info("[BI] Profile pixel transition viewport ready");
         setCommittedSrc(src);
         return runProfilePixelTransition({
           baseSrc,
@@ -1083,13 +998,14 @@ function ProfileTransformAvatar({
           },
           src,
         });
-      });
+      }, { ready: () => isElementFullyInViewport(visibilityTarget), signal: controller.signal });
     };
 
     render()
       .then(async (result) => {
         cleanupOverlay = result?.cleanup || null;
-        if (cancelled || !result) return;
+        if (cancelled) { cleanupOverlay?.(); return; }
+        if (!result) return;
         markProfileTransitionComplete(baseSrc, src);
         setShowTransformedImage(true);
         await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -1105,6 +1021,7 @@ function ProfileTransformAvatar({
 
     return () => {
       cancelled = true;
+      controller.abort();
       cleanupOverlay?.();
       try {
         container
@@ -1179,11 +1096,12 @@ function ProfileTransformFrame({
   transitionVersion,
 }) {
   const fitWidth = className?.includes("fit-width");
+  const containFit = imageFit === "contain";
   const frameStyle = {
     aspectRatio: aspectRatio || undefined,
-    height: fitWidth ? "auto" : "100%",
-    maxWidth: "none",
-    width: fitWidth ? "100%" : "auto",
+    height: containFit || !fitWidth ? "100%" : "auto",
+    maxWidth: containFit ? "100%" : "none",
+    width: containFit || fitWidth ? "100%" : "auto",
   };
 
   return (
@@ -1219,10 +1137,51 @@ function Profile({
   const navigate = useNavigate();
   const [visibleTransformAssetIds, setVisibleTransformAssetIds] = useState([]);
   const transforms = useProfileTransforms(profileGender, visibleTransformAssetIds);
-  const markVisibleTransformAsset = useCallback((assetId) => {
-    setVisibleTransformAssetIds((current) =>
-      current.includes(assetId) ? current : [...current, assetId],
-    );
+  const transformElements = useRef(new Map());
+  const visibilityFrame = useRef(0);
+  const refreshTransformVisibility = useCallback(() => {
+    cancelAnimationFrame(visibilityFrame.current);
+    visibilityFrame.current = requestAnimationFrame(() => {
+      const ranked = [];
+      for (const [element, assetId] of transformElements.current) {
+        if (!element.isConnected) continue;
+        const rect = element.getBoundingClientRect();
+        if (!rect.width || !rect.height || rect.right <= 0 || rect.left >= window.innerWidth) continue;
+        const visible = getElementViewportRatio(element) > 0;
+        const nearby = rect.top >= window.innerHeight && rect.top <= window.innerHeight + rect.height;
+        if (visible || nearby) ranked.push({ assetId, rank: visible ? 0 : 1, top: rect.top, left: rect.left });
+      }
+      ranked.sort((a, b) => a.rank - b.rank || a.top - b.top || a.left - b.left);
+      const ids = [...new Set(ranked.map((entry) => entry.assetId))];
+      setVisibleTransformAssetIds((current) => current.join("|") === ids.join("|") ? current : ids);
+    });
+  }, []);
+  const markVisibleTransformAsset = useCallback((assetId, element) => {
+    transformElements.current.set(element, assetId);
+    refreshTransformVisibility();
+    return () => {
+      transformElements.current.delete(element);
+      refreshTransformVisibility();
+    };
+  }, [refreshTransformVisibility]);
+  useEffect(() => {
+    document.addEventListener("scroll", refreshTransformVisibility, true);
+    window.addEventListener("resize", refreshTransformVisibility);
+    document.addEventListener("load", refreshTransformVisibility, true);
+    refreshTransformVisibility();
+    return () => {
+      document.removeEventListener("scroll", refreshTransformVisibility, true);
+      window.removeEventListener("resize", refreshTransformVisibility);
+      document.removeEventListener("load", refreshTransformVisibility, true);
+      cancelAnimationFrame(visibilityFrame.current);
+    };
+  }, [refreshTransformVisibility]);
+  const prioritizeTransformAsset = useCallback((assetId) => {
+    if (!assetId) return;
+    setVisibleTransformAssetIds((current) => [
+      assetId,
+      ...current.filter((currentAssetId) => currentAssetId !== assetId),
+    ]);
   }, []);
   const canUseProfileTransforms = transforms.canApply;
   const baseProfileImage = resolveAssetUrl(profileData.user.profileImage);
@@ -1360,6 +1319,7 @@ function Profile({
   }, [postOverlayImageRatio]);
 
   const openPostOverlay = (postIndex) => {
+    prioritizeTransformAsset(profilePosts[postIndex]?.transformAssetId);
     setSelectedPostIndex(postIndex);
   };
 
