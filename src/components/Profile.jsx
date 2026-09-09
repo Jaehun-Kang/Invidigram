@@ -598,7 +598,7 @@ const buildMaskedFaceSourceRgba = (
 let profileWorkerPromise;
 const getProfileTransitionWorker = () => {
   profileWorkerPromise ??= (async () => {
-    const worker = new Worker("/v2/resources/transform/obamify-worker.js?v=profile-transition-6");
+    const worker = new Worker("/v2/resources/transform/obamify-worker.js?v=profile-transition-7");
     const [wasmJsSource, wasmBytes, weightsImage, seed, jfa, shade] =
       await Promise.all([
         fetch("/v2/resources/transform/pkg/obamify_wasm.js").then((response) =>
@@ -656,6 +656,47 @@ const markProfileTransitionComplete = (baseSrc, src) => {
   }
 };
 const enqueueProfileTransition = createTransitionQueue(2);
+const enqueueProfilePreparation = createTransitionQueue(1);
+
+const prepareProfilePixelTransition = async ({ baseSrc, src, faceBox }) => {
+  const [{ worker, weightsImage }, fromImage, toImage] = await Promise.all([
+    getProfileTransitionWorker(), loadCanvasImage(baseSrc), loadCanvasImage(src),
+  ]);
+  const box = getPixelBox(faceBox, fromImage.naturalWidth, fromImage.naturalHeight);
+  const aspect = box.width / box.height;
+  const targetCrop = cropImage(toImage, box);
+  const sourceRgba = buildMaskedFaceSourceRgba(fromImage, box, box.width, box.height,
+    profileTransitionSidelen, aspect, targetCrop);
+  if (!sourceRgba) throw new Error("Profile masked source canvas unavailable");
+  const targetRgb = imageRgb(targetCrop, aspect);
+  const weightsGray = imageGray(weightsImage, aspect);
+  const imgId = nextProfileTransitionJobId++;
+  const assignments = await new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      worker.removeEventListener("message", onMessage);
+    };
+    const onMessage = (event) => {
+      if (event.data.imgId !== imgId) return;
+      if (event.data.type === "COMPUTE_DONE") {
+        cleanup();
+        resolve(event.data.assignments);
+      } else if (event.data.type === "ERROR") {
+        cleanup();
+        reject(new Error(event.data.error));
+      }
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("Profile transition preparation timed out"));
+    }, 120000);
+    worker.addEventListener("message", onMessage);
+    worker.postMessage({ type: "PROCESS", imgId, prepareOnly: true,
+      sourceType: "img", sidelen: profileTransitionSidelen,
+      srcRgba: sourceRgba.buffer, targetRgb: targetRgb.buffer, weightsGray: weightsGray.buffer });
+  });
+  return { assignments, sourceRgba, targetRgb, weightsGray };
+};
 
 const isElementFullyInViewport = (element) => {
   const rect = element.getBoundingClientRect();
@@ -700,6 +741,7 @@ const runProfilePixelTransition = async ({
   imageElement,
   onFirstFrame,
   src,
+  prepared,
 }) => {
   console.info("[BI] Profile pixel transition start", {
     hasFaceBox: Boolean(faceBox),
@@ -708,7 +750,7 @@ const runProfilePixelTransition = async ({
   const [{ worker, weightsImage }, fromImage, toImage] = await Promise.all([
     getProfileTransitionWorker(),
     loadCanvasImage(baseSrc),
-    loadCanvasImage(src),
+    prepared ? Promise.resolve(null) : loadCanvasImage(src),
   ]);
   const sourceBox = getPixelBox(
     faceBox,
@@ -725,7 +767,7 @@ const runProfilePixelTransition = async ({
   );
   const displayRenderWidth = displayMetrics.renderWidth;
   const displayRenderHeight = displayMetrics.renderHeight;
-  const targetCrop = cropImage(toImage, sourceBox);
+  const targetCrop = prepared ? null : cropImage(toImage, sourceBox);
   const aspect = sourceBox.width / sourceBox.height;
   const backingScale = Math.max(
     1,
@@ -745,7 +787,7 @@ const runProfilePixelTransition = async ({
     1,
     Math.round(displayRenderHeight * backingScale),
   );
-  const sourceRgba = buildMaskedFaceSourceRgba(
+  const sourceRgba = prepared?.sourceRgba ?? buildMaskedFaceSourceRgba(
     fromImage,
     sourceBox,
     sourceBox.width,
@@ -758,8 +800,8 @@ const runProfilePixelTransition = async ({
     throw new Error("Profile masked source canvas unavailable");
   }
   const renderSrcRgba = buildPreviewPremultipliedRgba(sourceRgba);
-  const targetRgb = imageRgb(targetCrop, aspect);
-  const weightsGray = imageGray(weightsImage, aspect);
+  const targetRgb = prepared?.targetRgb ?? imageRgb(targetCrop, aspect);
+  const weightsGray = prepared?.weightsGray ?? imageGray(weightsImage, aspect);
   const viewportX = displayMetrics.faceX * backingScale;
   const viewportY = displayMetrics.faceY * backingScale;
   const viewportW = Math.max(1, displayMetrics.faceWidth * backingScale);
@@ -859,6 +901,8 @@ const runProfilePixelTransition = async ({
         imgId,
         sourceType: "img",
         directFinalize: false,
+        exportFinalImage: false,
+        assignments: prepared?.assignments,
         sidelen: profileTransitionSidelen,
         srcRgba: sourceRgba.buffer,
         renderSrcRgba: renderSrcRgba.buffer,
@@ -983,6 +1027,16 @@ function ProfileTransformAvatar({
         await transformedImage.decode();
       }
       if (cancelled) return null;
+      const prepared = await enqueueProfilePreparation(
+        () => prepareProfilePixelTransition({ baseSrc, src, faceBox: activeFaceBox }),
+        { signal: controller.signal, ready: () => {
+          if (!visibilityTarget.isConnected) return false;
+          const rect = visibilityTarget.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && rect.bottom > 0 &&
+            rect.top <= window.innerHeight + rect.height && rect.right > 0 && rect.left < window.innerWidth;
+        } },
+      );
+      if (cancelled || !prepared) return null;
       return enqueueProfileTransition(async () => {
         if (cancelled) return null;
         console.info("[BI] Profile pixel transition viewport ready");
@@ -997,6 +1051,7 @@ function ProfileTransformAvatar({
             if (!cancelled) setShowTransformedImage(true);
           },
           src,
+          prepared,
         });
       }, { ready: () => isElementFullyInViewport(visibilityTarget), signal: controller.signal });
     };
